@@ -82,8 +82,7 @@ int main(void)
     ui_button(ctx, "Left Button", align_left);
     ui_button(ctx, "Center Button", align_center);
 
-    if (!ui_button(ctx, "Right Button", align_right))
-        return -1;
+    ui_button(ctx, "Right Button", align_right);
 
     ui_end_window(ctx);
 
