@@ -44,12 +44,7 @@ jobs:
 
       # 5. Build the project
       - name: Build with CMake
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            msbuild build/leanui_test.sln /m /p:Configuration=Release
-          else
-            cmake --build build --config Release -- -j$(nproc)
-          fi
+        run: if [[ "${{ matrix.os }}" == "windows-latest" ]]; then cmake --build build --config Release -- /m; else cmake --build build --config Release -- -j$(nproc); fi
         shell: bash
 
       # 6. Run unit tests
