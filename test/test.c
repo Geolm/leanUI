@@ -27,6 +27,7 @@ void set_clip_rect(uint16_t min_x, uint16_t min_y, uint16_t max_x, uint16_t max_
 //-----------------------------------------------------------------------------------------------------------------------------
 float text_width(const char* text, void* user)
 {
+    (void) user;
     return 16.f * strlen(text);
 }
 
