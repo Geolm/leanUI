@@ -46,7 +46,7 @@ jobs:
       - name: Build with CMake
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cmake --build build --config Release /m
+            msbuild build/leanui_test.sln /m /p:Configuration=Release
           else
             cmake --build build --config Release -- -j$(nproc)
           fi
