@@ -1,0 +1,58 @@
+name: CMake Build and Test (Multiplatform)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Install CMake and build tools
+      - name: Setup build tools
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y cmake build-essential
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew update
+            brew install cmake
+          else
+            choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
+          fi
+        shell: bash
+
+      # 3. Create build directory
+      - name: Create build directory
+        run: mkdir -p build
+
+      # 4. Configure with CMake
+      - name: Configure CMake
+        run: cmake -S . -B build
+
+      # 5. Build the project
+      - name: Build with CMake
+        run: cmake --build build --config Release -- -j$(nproc)
+        shell: bash
+
+      # 6. Run unit tests
+      - name: Run unit tests
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            build\Release\leanui_test.exe
+          else
+            ./build/leanui_test
+          fi
+        shell: bash
