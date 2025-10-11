@@ -33,6 +33,8 @@ LeanUI provides a small, cohesive set of widgets:
 Each widget is built with consistent spacing, alignment, and interaction patterns.  
 The goal is not to cover everything, but to make a minimal set look and feel right out of the box.
 
+<img src="docs/widgets.png" alt="LeanUI demo" width="300">
+
 ---
 
 ## Animation & Easing
