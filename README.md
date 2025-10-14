@@ -42,10 +42,15 @@ Unlike most tiny immediate-mode UI libraries, LeanUI has animation built in:
 - Animation framerate independant, uses delta time between frames.
 - No per-widget state is stored — transitions are computed implicitly based on widget identity.  
   
-
 This gives small UIs a fluid, modern feel without adding complexity to your code.
 
 ---
+
+## Layout
+
+Very simple and effective (no rows, no columns)
+- Horizontal alignment : left, center or right
+- Manually call to ui_newline to make a carriage return
 
 ## Example
 
