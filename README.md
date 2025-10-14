@@ -38,9 +38,10 @@ The goal is not to cover everything, but to make a minimal set look and feel rig
 
 Unlike most tiny immediate-mode UI libraries, LeanUI has animation built in:
 
-- Hover, press, and toggle states are automatically eased over time.
+- Hover, press and toggle states are automatically eased over time.
+- Animation framerate independant, uses delta time between frames.
 - No per-widget state is stored — transitions are computed implicitly based on widget identity.  
-- 
+  
 
 This gives small UIs a fluid, modern feel without adding complexity to your code.
 
