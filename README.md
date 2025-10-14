@@ -9,15 +9,13 @@ It’s designed for games and lightweight applications that need a clean, polish
 
 ## Overview
 
-- Immediate-mode API  
-- No allocations, no dependencies beyond the C standard library  
-- Single header / single source, easy to drop into any project  
-- Built-in easing and animation for a smooth, modern feel  
+- Immediate-mode API (rendering is also immediate, now command list to traverse, easier to integrate your own rendering)
+- No allocations, no dependencies beyond the C standard library
+- Single header / single source, easy to drop into any project 
+- Built-in easing and animation for a smooth, modern feel
 - A focused set of well-designed widgets  
 - ~500 lines of code, compiles in seconds
-
-LeanUI aims to sit between *microui’s minimalism* and *modern UI polish*.  
-It’s not a giant toolkit, but it’s not barebones either.
+- Low memory footprint ~3kb as the lib does not store any data for widget and don't use hashmap
 
 ---
 
@@ -28,12 +26,11 @@ LeanUI provides a small, cohesive set of widgets:
 - **Buttons** — with hover and press animations  
 - **Labels / value fields** — for clean key–value layouts  
 - **Toggles** — animated switches inspired by iOS  
-- **Segmented controls** — for mode switching  
+- **Segmented controls** — for mode switching
+- **Sliders** 
 
 Each widget is built with consistent spacing, alignment, and interaction patterns.  
 The goal is not to cover everything, but to make a minimal set look and feel right out of the box.
-
-<img src="docs/widgets.png" alt="LeanUI demo" width="300">
 
 ---
 
@@ -41,10 +38,9 @@ The goal is not to cover everything, but to make a minimal set look and feel rig
 
 Unlike most tiny immediate-mode UI libraries, LeanUI has animation built in:
 
-- Hover, press, and toggle states are automatically eased over time.  
-- New windows and panels animate smoothly when they appear.  
+- Hover, press, and toggle states are automatically eased over time.
 - No per-widget state is stored — transitions are computed implicitly based on widget identity.  
-- Common easing functions (e.g. quadratic, overshoot) are included.
+- 
 
 This gives small UIs a fluid, modern feel without adding complexity to your code.
 
@@ -55,13 +51,7 @@ This gives small UIs a fluid, modern feel without adding complexity to your code
 ```c
 #include "lean_ui.h"
 
-void frame(void)
+void frame(float delta_time)
 {
-    ui_begin();
-
-    if (ui_button("Click Me")) {
-        // Handle button press
-    }
-
-    ui_end();
+   
 }
