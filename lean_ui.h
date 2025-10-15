@@ -23,12 +23,16 @@ enum ui_text_alignment
     align_right
 };
 
+enum ui_window_option
+{
+    window_pinned = 1<<0,
+    window_resizable = 1<<1
+};
+
 typedef struct 
 {
     void  (*draw_box)(float x, float y, float width, float height, float radius, uint32_t srgb_color, void* user);
-
-    // draw a text top-left aligned with x,y
-    void  (*draw_text)(float x, float y, const char* text, uint32_t srgb_color, void* user);
+    void  (*draw_text)(float x, float y, const char* text, uint32_t srgb_color, void* user); // draw a text top-left aligned with x,y
     void (*set_clip_rect)(uint16_t min_x, uint16_t min_y, uint16_t max_x, uint16_t max_y, void* user);
     float  (*text_width)(const char* text, void* user);
     void*   user;
@@ -36,10 +40,12 @@ typedef struct
 
 typedef struct
 {
-    void* preallocated_buffer;
+    void* preallocated_buffer;  // must be aligned on 8 bytes
     ui_renderer_fnc_t renderer_callbacks;
     float font_height;
 } ui_def;
+
+typedef struct {float x, y, width, height;} ui_rect;
 
 typedef struct ui_context ui_context;
 
@@ -78,7 +84,8 @@ void ui_begin_frame(ui_context* ctx, float delta_time);
 // Begins a new window
 //      [name]                  unique name, hashed under the hood
 //      [x, y, width, height]   initial position and size in pixels can be changed by the user
-void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float width, float height);
+//      [options]               combination of options from enum ui_window_option
+void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float width, float height, uint32_t options);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Displays text according to the alignment
@@ -129,11 +136,15 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
 bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignment);
 
 //-----------------------------------------------------------------------------------------------------------------------------
+// Returns the current layout rect, useful for custom rendering
+const ui_rect* ui_get_layout(const ui_context* ctx);
+
+//-----------------------------------------------------------------------------------------------------------------------------
 // Ends the current window. Must match ui_begin_window()
 void ui_end_window(ui_context* ctx);
 
 //-----------------------------------------------------------------------------------------------------------------------------
-//
+// Ends the current frame. Must match ui_begin_frame(). Until next frame no more calls to lean_ui.
 void ui_end_frame(ui_context* ctx);
 
 #ifdef __cplusplus

@@ -25,13 +25,21 @@ It’s designed for games and lightweight applications that need a clean, polish
 leanUI provides a small, cohesive set of widgets:
 
 - **Buttons** — with hover and press animations
+
+![buttons](docs/buttons.png)
+
 - **Labels / value fields** — for clean key–value layouts  
 - **Toggles** — animated switches inspired by iOS
 
-![animated toggle](docs/toggle.png)
+![toggle](docs/toggle.png)
 
 - **Segmented controls** — for mode switching
+
+![segmented](docs/segmented.png)
+
 - **Sliders** 
+
+![slider](docs/slider.png)
 
 Each widget is built with consistent spacing, alignment, and interaction patterns.  
 The goal is not to cover everything, but to make a minimal set look and feel right out of the box.
@@ -61,7 +69,29 @@ Very simple and effective (no rows, no columns)
 ```c
 #include "lean_ui.h"
 
-void frame(float delta_time)
+void frame(ui_context* ctx, float delta_time)
 {
-   
+    ui_begin_frame(ctx, 1.f/60.f);
+    ui_begin_window(ctx, "Alright let's play!", 800, 100, 600, 1200, window_resizable);
+
+    const char* list[] = {"One", "Two", "Three", "Four"};
+    static uint32_t selected = 2;
+    ui_segmented(ctx, list, 4, &selected);
+
+    ui_separator(ctx);
+
+    static float quantity = 5.f;
+    ui_slider(ctx, "Distance", 0.f, 100.f, 1.f, &quantity, "%3.2fkm");
+
+    if (ui_button(ctx, "Left Button", align_left))
+    {
+        // process
+    }
+
+    ui_end_window(ctx);
+    ui_end_frame(ctx);
 }
+
+
+```
+

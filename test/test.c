@@ -51,7 +51,8 @@ int main(void)
 
     ui_update_mouse_button(ctx, button_pressed);
     ui_update_mouse_pos(ctx, 187.f, 847.f);
-    ui_begin_window(ctx, "Alright let's play!", 800, 100, 600, 1200);
+    ui_begin_frame(ctx, 1.f/60.f);
+    ui_begin_window(ctx, "Alright let's play!", 800, 100, 600, 1200, window_resizable);
 
     ui_text(ctx, align_left, "to the left");
     ui_text(ctx, align_right, "right");
@@ -86,6 +87,7 @@ int main(void)
     ui_button(ctx, "Right Button", align_right);
 
     ui_end_window(ctx);
+    ui_end_frame(ctx);
 
     free(def.preallocated_buffer);
 

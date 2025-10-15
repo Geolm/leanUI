@@ -14,11 +14,6 @@
 // Structures
 //-----------------------------------------------------------------------------------------------------------------------------
 
-typedef struct 
-{
-    float x, y, width, height;
-} ui_rect;
-
 typedef struct {float x, y;} ui_vec2;
 
 typedef struct
@@ -27,6 +22,9 @@ typedef struct
     uint32_t id;
     ui_vec2 pos;
     float width, height;
+    float min_width, min_height;
+    uint32_t options;
+    bool closed;
 } ui_window;
 
 typedef struct
@@ -69,6 +67,7 @@ struct ui_context
     ui_window windows[MAX_WINDOWS];
     uint32_t num_windows;
     ui_window* current_window;
+    ui_window* resizing_window;
     void* dragging_object;
     ui_animation animation;
     ui_hover hover;
@@ -77,7 +76,7 @@ struct ui_context
     float font_height;
     float row_height;
     float padding;
-    float corners_radius;
+    float corner;
     ui_colors colors;
     ui_renderer_fnc_t renderer;
     char string_buffer[STRING_BUFFER_SIZE];
@@ -88,6 +87,7 @@ struct ui_context
 //-----------------------------------------------------------------------------------------------------------------------------
 
 static inline ui_vec2 ui_vec2_sub(ui_vec2 a, ui_vec2 b) {return (ui_vec2){a.x - b.x, a.y - b.y};}
+static inline ui_vec2 ui_vec2_add(ui_vec2 a, ui_vec2 b) {return (ui_vec2){a.x + b.x, a.y + b.y};}
 static inline bool in_rect(const ui_rect *rect, ui_vec2 pos) 
 {
     return ((pos.x>=rect->x) && (pos.x<=rect->x+rect->width) && (pos.y>=rect->y) && (pos.y<=rect->y+rect->height));
@@ -164,6 +164,8 @@ ui_context* ui_init(const ui_def* def)
 {
     assert(def->renderer_callbacks.draw_box && def->renderer_callbacks.draw_text &&
            def->renderer_callbacks.set_clip_rect && def->renderer_callbacks.text_width);
+    
+    assert(((uintptr_t)def->preallocated_buffer)%sizeof(uintptr_t) == 0);
 
     ui_context* ctx = (ui_context*)def->preallocated_buffer;
     *ctx = (ui_context)
@@ -172,7 +174,7 @@ ui_context* ui_init(const ui_def* def)
         .font_height = def->font_height,
         .renderer = def->renderer_callbacks,
         .padding = fmaxf(def->font_height/4.f, 2.f),
-        .corners_radius = fmaxf(def->font_height/2.f, 2.f),
+        .corner = fmaxf(def->font_height/2.f, 2.f),
         .colors = 
         {
             .window_bg = 0xFFF7F0E9,
@@ -215,7 +217,7 @@ void ui_begin_frame(ui_context* ctx, float delta_time)
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
-void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float width, float height)
+void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float width, float height, uint32_t options)
 {
     assert(ctx->current_window == NULL);
 
@@ -236,32 +238,49 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
             .name = name,
             .id = id,
             .pos = {.x = x, .y = y},
-            .width = fmaxf(width, ctx->renderer.text_width(name, ctx->renderer.user) + ctx->padding * 2.f),
-            .height = fmaxf(height, ctx->font_height + ctx->padding * 2.f)
+            .min_width = ctx->renderer.text_width(name, ctx->renderer.user) + ctx->padding * 2.f,
+            .min_height = ctx->row_height * 2.f,
+            .width = width,
+            .height = height,
+            .options = options,
+            .closed = false
         };
     }
 
     ui_window* w = ctx->current_window;
+
+    // resize
+    ui_rect handle_rect = {w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
+    if (ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) && (w->options&window_resizable))
+    {
+        ctx->resizing_window = w;
+        ctx->dragging_offset = ui_vec2_sub(ui_vec2_add(w->pos, (ui_vec2) {w->width, w->height}), ctx->mouse_pos);
+    }
+
+    if (ctx->mouse_down && ctx->resizing_window == w)
+    {
+        w->width = fmaxf(ctx->mouse_pos.x + ctx->dragging_offset.x - w->pos.x, w->min_width);
+        w->height = fmaxf(ctx->mouse_pos.y + ctx->dragging_offset.y - w->pos.y, w->min_height);
+    }
+
     ui_rect title_rect = {w->pos.x+ctx->padding, w->pos.y+ctx->padding, w->width-ctx->padding*2.f, ctx->row_height};
 
     // move the window if click on the title bar
-    if (ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos))
+    if (ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
+        !(w->options&window_pinned) && ctx->resizing_window != w)
     {
         ctx->dragging_object = w;
         ctx->dragging_offset = ui_vec2_sub(ctx->mouse_pos, w->pos);
     }
 
-    if (ctx->mouse_button == button_released && ctx->dragging_object == w)
-        ctx->dragging_object = NULL;
-
     if (ctx->mouse_down && ctx->dragging_object == w)
         w->pos = ui_vec2_sub(ctx->mouse_pos, ctx->dragging_offset);
 
     // border
-    ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corners_radius, ctx->colors.window_border, ctx->renderer.user);
+    ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corner, ctx->colors.window_border, ctx->renderer.user);
 
     // title bg
-    ctx->renderer.draw_box(title_rect.x, title_rect.y, title_rect.width, title_rect.height, ctx->corners_radius, ctx->colors.title_bg, ctx->renderer.user);
+    ctx->renderer.draw_box(title_rect.x, title_rect.y, title_rect.width, title_rect.height, ctx->corner, ctx->colors.title_bg, ctx->renderer.user);
 
     ctx->layout = (ui_rect)
     {
@@ -280,6 +299,10 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
 
     // title
     draw_align_text(ctx, &title_rect, w->name, ctx->colors.title_text, align_center);
+
+    // draw resize handle
+    if (w->options&window_resizable)
+        ctx->renderer.draw_box(handle_rect.x, handle_rect.y, handle_rect.width, handle_rect.height, 0.f, ctx->colors.separator, ctx->renderer.user);
 
     // clip rect
     uint16_t clip_minx = (uint16_t) fmaxf(ctx->layout.x, 0.f);
@@ -413,7 +436,7 @@ void ui_segmented(ui_context* ctx, const char** entries, uint32_t num_entries, u
     };
 
     ctx->renderer.draw_box(seg_rect.x, seg_rect.y + ctx->padding, ctx->layout.width, seg_rect.height,
-                           ctx->corners_radius, ctx->colors.widget_bg, ctx->renderer.user);
+                           ctx->corner, ctx->colors.widget_bg, ctx->renderer.user);
     
     if (*selected < num_entries)
     {
@@ -528,9 +551,6 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
             ctx->dragging_object = NULL;
     }
 
-    if (ctx->mouse_button == button_released && ctx->dragging_object == value)
-        ctx->dragging_object = NULL;
-
     // click-on-track update
     if (ctx->animation.widget == value)
         thumb_x = lerp_float(ctx->animation.value_key0, ctx->animation.value_key1, ctx->animation.t);
@@ -595,12 +615,12 @@ bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignm
 
     // border
     ctx->renderer.draw_box(button_rect.x, button_rect.y, button_rect.width, button_rect.height, 
-                           ctx->corners_radius, ctx->colors.separator, ctx->renderer.user);
+                           ctx->corner, ctx->colors.separator, ctx->renderer.user);
 
     expand_rect(&button_rect, -1.f);
 
     ctx->renderer.draw_box(button_rect.x, button_rect.y, button_rect.width, button_rect.height, 
-                           ctx->corners_radius, button_color, ctx->renderer.user);
+                           ctx->corner, button_color, ctx->renderer.user);
 
     ctx->renderer.draw_text(text_pos.x, text_pos.y, label, ctx->colors.text, ctx->renderer.user);
 
@@ -608,9 +628,16 @@ bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignm
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
+const ui_rect* ui_get_layout(const ui_context* ctx)
+{
+    return &ctx->layout;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
 void ui_end_window(ui_context* ctx)
 {
     assert(ctx->current_window != NULL);
+    ctx->current_window->min_height = ctx->layout.y - ctx->current_window->pos.y + ctx->row_height * 2.f;
     ctx->current_window = NULL;
     ctx->renderer.set_clip_rect(0, 0, UINT16_MAX, UINT16_MAX, ctx->renderer.user);
 }
@@ -620,12 +647,18 @@ void ui_end_frame(ui_context* ctx)
 {
     assert(ctx->current_window == NULL);
 
-    ctx->mouse_button = button_idle;
-
     if (ctx->animation.t >= 1.f)
     {
         ctx->animation.widget = NULL;
         ctx->animation.t = 1.f;
     }
+
+    if (ctx->mouse_button == button_released)
+    {
+        ctx->resizing_window = NULL;
+        ctx->dragging_object = NULL;
+    }
+
+    ctx->mouse_button = button_idle;
 }
 
