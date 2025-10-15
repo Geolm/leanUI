@@ -1,6 +1,6 @@
 # leanUI
 
-![Build Status](https://github.com/Geolm/leanUI/actions/workflows/cmake-multi-platform.yml/badge.svg)
+[![Build Status](https://github.com/Geolm/leanUI/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/geolm/leanUI/actions)
 
 
 leanUI is a small immediate-mode UI library written in C99.  
