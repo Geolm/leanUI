@@ -1,9 +1,10 @@
-# LeanUI
+# leanUI
 
-LeanUI is a small immediate-mode UI library written in C99.  
+leanUI is a small immediate-mode UI library written in C99.  
 It’s designed for games and lightweight applications that need a clean, polished interface without bringing in a full framework.
 
-![LeanUI demo](docs/leanui_demo.gif)
+<img src="docs/example.png" alt="leanUI example" width="50%">
+
 
 ---
 
@@ -21,11 +22,14 @@ It’s designed for games and lightweight applications that need a clean, polish
 
 ## Widgets
 
-LeanUI provides a small, cohesive set of widgets:
+leanUI provides a small, cohesive set of widgets:
 
-- **Buttons** — with hover and press animations  
+- **Buttons** — with hover and press animations
 - **Labels / value fields** — for clean key–value layouts  
-- **Toggles** — animated switches inspired by iOS  
+- **Toggles** — animated switches inspired by iOS
+
+![animated toggle](docs/toggle.png)
+
 - **Segmented controls** — for mode switching
 - **Sliders** 
 
@@ -36,7 +40,7 @@ The goal is not to cover everything, but to make a minimal set look and feel rig
 
 ## Animation & Easing
 
-Unlike most tiny immediate-mode UI libraries, LeanUI has animation built in:
+Unlike most tiny immediate-mode UI libraries, leanUI has animation built in:
 
 - Hover, press and toggle states are automatically eased over time.
 - Animation framerate independant, uses delta time between frames.
