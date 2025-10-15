@@ -1,5 +1,8 @@
 # leanUI
 
+![Build Status](https://github.com/Geolm/leanUI/actions/workflows/cmake-multi-platform.yml/badge.svg)
+
+
 leanUI is a small immediate-mode UI library written in C99.  
 It’s designed for games and lightweight applications that need a clean, polished interface without bringing in a full framework.
 
@@ -65,6 +68,8 @@ Very simple and effective (no rows, no columns)
 - Manually call to ui_newline to make a carriage return
 
 ## Example
+
+For a complete and compiling example see [test/test.c](test/test.c)
 
 ```c
 #include "lean_ui.h"
