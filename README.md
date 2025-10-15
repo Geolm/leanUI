@@ -70,7 +70,7 @@ Very simple and effective layout (no rows or columns)
 You just need to add lean_ui.c/h to your project, set the callbacks at init and update input/delta_time each frame.
 
 ### Callbacks
-- **draw_box**: The rectangle’s rounded corners are expected to fit entirely within the rectangle’s bounds; no part of the corner should extend beyond x, y, width, or height.
+- **draw_box**: The rectangle’s rounded corners are expected to fit entirely within the rectangle’s bounds; no part of the corner should extend beyond x, y, width, or height. Colors are defined in the sRGB color space. leanUI uses alpha blending.
 
 - **draw_text**: Draws text at (x, y). The y coordinate specifies the top, but the text will be centered vertically relative to the font height.
 
