@@ -1,5 +1,6 @@
 # leanUI
-
+![License: MIT](https://img.shields.io/badge/License-MIT-264653)
+![C Standard](https://img.shields.io/badge/C-C99-F4A261)
 [![Build Status](https://github.com/Geolm/leanUI/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/geolm/leanUI/actions)
 
 
