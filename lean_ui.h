@@ -63,7 +63,7 @@ size_t ui_min_memory_size(void);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Initializes the library
-//      [preallocated_buffer]   user-allocated memory of ui_min_memory_size() bytes
+//      [preallocated_buffer]   user-allocated memory of ui_min_memory_size() bytes, must be aligned on sizeof(uintptr_t)
 //      [renderer_callbacks]    user-provided drawing callbacks
 //      [font_height]           height in pixels of the font
 ui_context* ui_init(const ui_def* def);
