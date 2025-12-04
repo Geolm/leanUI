@@ -11,10 +11,17 @@ void draw_box(float x, float y, float width, float height, float radius, uint32_
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
-void  draw_text(float x, float y, const char* text, uint32_t srgb_color, void* user)
+void draw_text(float x, float y, const char* text, uint32_t srgb_color, void* user)
 {
     (void) user;
     fprintf(stdout, "draw_text(%f, %f, %s, %x)\n", x, y, text, srgb_color);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+void draw_line(float x0, float y0, float x1, float y1, float width, uint32_t srgb_color, void* user)
+{
+    (void) user;
+    fprintf(stdout, "draw_line(%f, %f, %f, %f, %f, %x)\n", x0, y0, x1, y1, width, srgb_color);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -42,6 +49,7 @@ int main(void)
         {
             .draw_box = draw_box,
             .draw_text = draw_text,
+            .draw_line = draw_line,
             .set_clip_rect = set_clip_rect,
             .text_width = text_width
         }
@@ -52,28 +60,28 @@ int main(void)
     ui_update_mouse_button(ctx, button_pressed);
     ui_update_mouse_pos(ctx, 187.f, 847.f);
     ui_begin_frame(ctx, 1.f/60.f);
-    ui_begin_window(ctx, "Alright let's play!", 800, 100, 600, 1200, window_resizable);
+    ui_begin_window(ctx, "Alright let's play!", 800, 100, 600, 1600, window_resizable);
 
-    ui_text(ctx, align_left, "to the left");
-    ui_text(ctx, align_right, "right");
+    ui_text(ctx, align_left, "On the left");
+    ui_text(ctx, align_right, "On the right");
     ui_newline(ctx);
 
     ui_value(ctx, "app time", "%2.2f sec", 45.f);
     ui_value(ctx, "delta time", "%2.2f ms", 16.f);
-    ui_text(ctx, align_center, "au centre");
+    ui_text(ctx, align_center, "In the middle");
     ui_newline(ctx);
     static bool test_bool, en_dessous;
-    ui_toggle(ctx, "test toggle plein de texte", &test_bool);
-    ui_toggle(ctx, "un autre", &en_dessous);
+    ui_toggle(ctx, "This is a toggle", &test_bool);
+    ui_toggle(ctx, "and another one", &en_dessous);
 
     ui_separator(ctx);
-    ui_text(ctx, align_center, "Choisit le tempo!");
+    ui_text(ctx, align_center, "Choose your destiny");
     ui_newline(ctx);
-    const char* list[] = {"Un", "Deux", "Trois", "Quatre"};
+    const char* list[] = {"Novice", "Warrior", "Master", "Champion"};
     static uint32_t selected = 2;
 
     ui_segmented(ctx, list, 4, &selected);
-    ui_text(ctx, align_left, "C'est le ");
+    ui_text(ctx, align_left, "Your choice");
     ui_text(ctx, align_center,  list[selected]);
     ui_newline(ctx);
     ui_separator(ctx);
@@ -83,8 +91,16 @@ int main(void)
     ui_separator(ctx);
     ui_button(ctx, "Left Button", align_left);
     ui_button(ctx, "Center Button", align_center);
-
     ui_button(ctx, "Right Button", align_right);
+
+    ui_newline(ctx);
+
+    float drive, pan, volume;
+    ui_knob(ctx, "drive", 1.f, 10.f, 2.f, &drive);
+    ui_knob(ctx, "pan", -1.f, 1.f, 0.f, &pan);
+    ui_knob(ctx, "volume", 0.f, 1.f, .7f, &volume);
+
+    ui_newline(ctx);
 
     ui_end_window(ctx);
     ui_end_frame(ctx);

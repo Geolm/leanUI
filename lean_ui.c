@@ -64,6 +64,8 @@ struct ui_context
     ui_vec2 mouse_pos;
     enum ui_button_state mouse_button;
     bool mouse_down;
+    bool mouse_doubleclick;
+    float doubleclick_timer;
     ui_window windows[MAX_WINDOWS];
     uint32_t num_windows;
     ui_window* current_window;
@@ -150,6 +152,12 @@ static inline void draw_align_text(ui_context* ctx, const ui_rect* rect, const c
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
+static inline void draw_disc(ui_context* ctx, float x, float y, float radius, uint32_t srgb_color)
+{
+    ctx->renderer.draw_box(x - radius, y - radius, radius*2.f, radius*2.f, radius, srgb_color, ctx->renderer.user);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
 // UI functions
 //-----------------------------------------------------------------------------------------------------------------------------
 
@@ -163,7 +171,8 @@ size_t ui_min_memory_size(void)
 ui_context* ui_init(const ui_def* def)
 {
     assert(def->renderer_callbacks.draw_box && def->renderer_callbacks.draw_text &&
-           def->renderer_callbacks.set_clip_rect && def->renderer_callbacks.text_width);
+           def->renderer_callbacks.set_clip_rect && def->renderer_callbacks.text_width &&
+           def->renderer_callbacks.draw_line);
     
     assert(((uintptr_t)def->preallocated_buffer)%sizeof(uintptr_t) == 0);
 
@@ -205,7 +214,18 @@ void ui_update_mouse_pos(ui_context* ctx, float x, float y)
 void ui_update_mouse_button(ui_context* ctx, enum ui_button_state button)
 {
     ctx->mouse_button = button;
-    ctx->mouse_down = (button == button_pressed);
+
+    if (button == button_pressed)
+    {
+        ctx->mouse_down = true;
+        ctx->mouse_doubleclick = (ctx->doubleclick_timer < 0.25f);
+        ctx->doubleclick_timer = 0.f;
+    }
+    else
+    {
+        ctx->mouse_down = false;
+        ctx->mouse_doubleclick = false;
+    }
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -214,6 +234,7 @@ void ui_begin_frame(ui_context* ctx, float delta_time)
     ctx->current_window = NULL;
     ctx->animation.t = fminf(1.f, ctx->animation.t + delta_time/ANIMATION_DURATION);
     ctx->hover.t = fminf(1.f, ctx->hover.t + delta_time/HOVER_DURATION);
+    ctx->doubleclick_timer += delta_time;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -330,8 +351,9 @@ void ui_newline(ui_context* ctx)
 {
     assert(ctx->current_window != NULL);
     ctx->layout.x = ctx->current_window->pos.x + ctx->padding * 2.f;
-    ctx->layout.y += ctx->row_height;
+    ctx->layout.y += ctx->layout.height;
     ctx->layout.width = ctx->current_window->width - ctx->padding * 4.f;
+    ctx->layout.height = ctx->row_height;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -508,11 +530,6 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
         .height = ctx->padding
     };
 
-    // track change color on mouse-over
-    uint32_t track_color = in_rect(&track_rect, ctx->mouse_pos) ? ctx->colors.widget_hover : ctx->colors.widget_bg;
-    ctx->renderer.draw_box(track_rect.x, track_rect.y, track_rect.width, track_rect.height,
-                           track_rect.height*.5f, track_color, ctx->renderer.user);
-
     // thumb geometry
     float norm_value = (*value - min_value) / (max_value - min_value);
     float thumb_x = norm_value * track_rect.width + track_rect.x;
@@ -527,8 +544,16 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
         .height = thumb_size
     };
 
+    const bool track_hovered = in_rect(&track_rect, ctx->mouse_pos);
+    const bool thumb_hovered = in_rect(&thumb_rect, ctx->mouse_pos);
+
+    // track change color on mouse-over
+    uint32_t track_color = (track_hovered || (ctx->dragging_object == value)) ? ctx->colors.widget_hover : ctx->colors.widget_bg;
+    ctx->renderer.draw_box(track_rect.x, track_rect.y, track_rect.width, track_rect.height,
+                           track_rect.height*.5f, track_color, ctx->renderer.user);
+
     // thumb mouse-over and dragging
-    if (in_rect(&thumb_rect, ctx->mouse_pos))
+    if (thumb_hovered)
     {
         expand_rect(&thumb_rect, 2.f);
         if (ctx->mouse_button == button_pressed)
@@ -537,7 +562,7 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
             ctx->dragging_offset.x = ctx->mouse_pos.x - thumb_x;
         }
     }
-    else if (in_rect(&track_rect, ctx->mouse_pos) && ctx->mouse_button == button_pressed)
+    else if (track_hovered && ctx->mouse_button == button_pressed)
     {
         // click on track make the thumb move
         ctx->animation = (ui_animation)
@@ -625,6 +650,97 @@ bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignm
     ctx->renderer.draw_text(text_pos.x, text_pos.y, label, ctx->colors.text, ctx->renderer.user);
 
     return clicked;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+void ui_knob(ui_context* ctx, const char* label, float min_value, float max_value, float default_value, float* value)
+{
+    // knob needs more space
+    ctx->layout.height = ctx->row_height * 2.f;
+
+    float text_width = ctx->renderer.text_width(label, ctx->renderer.user);
+    float width = ctx->layout.height * 2.f;
+    float cx = ctx->layout.x + width * .5f;
+    float cy = ctx->layout.y + ctx->layout.height * .25f + ctx->padding;
+    float radius = ctx->layout.height * .25f;
+
+    ui_rect knob_rect = {.x = cx - radius, .y = cy - radius, .width = radius * 2.f, .height = radius * 2.f};
+    bool hovered = in_rect(&knob_rect, ctx->mouse_pos);
+
+    if (hovered && ctx->mouse_button == button_pressed)
+    {
+        ctx->dragging_object = value;
+        ctx->dragging_offset.y = ctx->mouse_pos.y;
+    }
+
+    bool active = ctx->dragging_object == value;
+
+    // default value and double click managment
+    if (hovered && ctx->mouse_doubleclick)
+    {
+        ctx->animation = (ui_animation)
+        {
+            .value_key0 = *value,
+            .value_key1 = default_value,
+            .widget = value
+        };
+    }
+
+    if (ctx->animation.widget == value)
+    {
+        *value = lerp_float(ctx->animation.value_key0, ctx->animation.value_key1, ctx->animation.t);
+    }
+    else if (active)
+    {
+        // if dragging, update the value
+        float dx = ctx->dragging_offset.y - ctx->mouse_pos.y;
+        ctx->dragging_offset.y = ctx->mouse_pos.y;
+        float sens = ctx->font_height * 12.f;
+        float v = *value + dx * (max_value - min_value) / sens;
+        v = clamp_float(min_value, max_value, v);
+        *value = v;
+    }
+
+    // draw bound dots
+    float min_angle = -4.1887902f;
+    float max_angle = 1.0471975512f;
+    float bound_distance = radius * 1.05f;
+    float bound_radius = radius * .1f;
+
+    float bx1 = cx + cosf(min_angle) * bound_distance;
+    float by1 = cy + sinf(min_angle) * bound_distance;
+    float bx2 = cx + cosf(max_angle) * bound_distance;
+    float by2 = cy + sinf(max_angle) * bound_distance;
+
+    draw_disc(ctx, bx1, by1, bound_radius, ctx->colors.separator);
+    draw_disc(ctx, bx2, by2, bound_radius, ctx->colors.separator);
+
+    // knob rendering
+    float inner_radius = radius * .8f;
+    uint32_t knob_color = ctx->colors.widget_bg;
+    if (active)
+        knob_color = ctx->colors.widget_active;
+    else if (hovered)
+        knob_color = ctx->colors.widget_hover;
+
+    draw_disc(ctx, cx, cy, radius, ctx->colors.window_border);
+    draw_disc(ctx, cx, cy, inner_radius, knob_color);
+
+    // draw value mark
+    float t = (*value - min_value) / (max_value - min_value);
+    t = clamp_float(0.f, 1.f, t);
+
+    float angle = min_angle + t * (max_angle - min_angle);
+    float mark_radius = inner_radius * 0.9f;
+    float mx = cosf(angle);
+    float my = sinf(angle);
+    float line_width = ctx->padding / 8.f;
+
+    ctx->renderer.draw_line(cx, cy, cx + mx * mark_radius, cy + my * mark_radius, line_width, ctx->colors.accent, ctx->renderer.user);
+    ctx->renderer.draw_text(cx - text_width * .5f, cy + ctx->font_height, label, ctx->colors.text, ctx->renderer.user);
+
+    ctx->layout.x += width;
+    ctx->layout.width -= width;
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------

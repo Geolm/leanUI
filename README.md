@@ -19,7 +19,7 @@ It’s designed for games and lightweight applications that need a clean, polish
 - Single header / single source, easy to drop into any project 
 - Built-in easing and animation for a smooth, modern feel
 - A focused set of well-designed widgets  
-- ~500 lines of code, compiles in seconds
+- ~600 lines of code, compiles in seconds
 - Low memory footprint ~3kb as the lib does not store any data for widget and don't use hashmap
 
 ---
@@ -41,9 +41,14 @@ leanUI provides a small, cohesive set of widgets:
 
 ![segmented](docs/segmented.png)
 
-- **Sliders** 
+- **Sliders** - Adjust the value by dragging the thumb or by clicking directly on the track.
 
 ![slider](docs/slider.png)
+
+- **Knobs** - Adjust the value by dragging vertically. Double-click to reset to the default value.
+
+![knobs](docs/knobs.png)
+
 
 Each widget is built with consistent spacing, alignment, and interaction patterns.  
 The goal is not to cover everything, but to make a minimal set look and feel right out of the box.
@@ -71,7 +76,12 @@ Very simple and effective layout (no rows or columns)
 You just need to add lean_ui.c/h to your project, set the callbacks at init and update input/delta_time each frame.
 
 ### Callbacks
-- **draw_box**: The rectangle’s rounded corners are expected to fit entirely within the rectangle’s bounds; no part of the corner should extend beyond x, y, width, or height. Colors are defined in the sRGB color space. leanUI uses alpha blending.
+
+Colors are defined in the sRGB color space. leanUI uses alpha blending.  
+
+- **draw_box**: The rectangle’s rounded corners are expected to fit entirely within the rectangle’s bounds; no part of the corner should extend beyond x, y, width, or height. draw_box is used to draw disc.
+
+- **draw_line** : Draws a line between (x0, y0) and (x1, y1) with the specified width and color. Currently used for knobs value mark.
 
 - **draw_text**: Draws text at (x, y). The y coordinate specifies the top, but the text will be centered vertically relative to the font height.
 

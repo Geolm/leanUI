@@ -31,11 +31,12 @@ enum ui_window_option
 
 typedef struct 
 {
-    void  (*draw_box)(float x, float y, float width, float height, float radius, uint32_t srgb_color, void* user);
-    void  (*draw_text)(float x, float y, const char* text, uint32_t srgb_color, void* user); // draw a text top-left aligned with x,y
+    void (*draw_box)(float x, float y, float width, float height, float radius, uint32_t srgb_color, void* user);
+    void (*draw_text)(float x, float y, const char* text, uint32_t srgb_color, void* user); // draw a text top-left aligned with x,y
+    void (*draw_line)(float x0, float y0, float x1, float y1, float width, uint32_t srgb_color, void* user);
     void (*set_clip_rect)(uint16_t min_x, uint16_t min_y, uint16_t max_x, uint16_t max_y, void* user);
-    float  (*text_width)(const char* text, void* user);
-    void*   user;
+    float (*text_width)(const char* text, void* user);
+    void* user;
 } ui_renderer_fnc_t;
 
 typedef struct
@@ -120,7 +121,6 @@ void ui_segmented(ui_context* ctx, const char** entries, uint32_t num_entries, u
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Displays a horizontal slider with a label
-//
 //      [min_value]    minimum allowed value
 //      [max_value]    maximum allowed value
 //      [step]         increment step (e.g. 0.1)
@@ -134,6 +134,14 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
 //
 // returns true if the button was pressed this frame
 bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignment);
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// Displays a knob with a label below, as you can stack multiple knobs in a row you have to call ui_newline()
+//      [min_value]     minimum allowed value
+//      [max_value]     maximum allowed value
+//      [default_value] double-click on the knob will reset the value to default
+//      [value]         pointer to the controlled float
+void ui_knob(ui_context* ctx, const char* label, float min_value, float max_value, float default_value, float* value);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Returns the current layout rect, useful for custom rendering
