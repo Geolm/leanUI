@@ -232,6 +232,14 @@ void ui_update_mouse_button(ui_context* ctx, enum ui_button_state button)
 void ui_begin_frame(ui_context* ctx, float delta_time)
 {
     ctx->current_window = NULL;
+
+    // a window/widget grab is only valid while the button is held down
+    if (!ctx->mouse_down)
+    {
+        ctx->resizing_window = NULL;
+        ctx->dragging_object = NULL;
+    }
+
     ctx->animation.t = fminf(1.f, ctx->animation.t + delta_time/ANIMATION_DURATION);
     ctx->hover.t = fminf(1.f, ctx->hover.t + delta_time/HOVER_DURATION);
     ctx->doubleclick_timer += delta_time;
@@ -272,7 +280,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
 
     // resize
     ui_rect handle_rect = {w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
-    if (ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) && (w->options&window_resizable))
+    if (ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) && (w->options&window_resizable) && ctx->resizing_window == NULL)
     {
         ctx->resizing_window = w;
         ctx->dragging_offset = ui_vec2_sub(ui_vec2_add(w->pos, (ui_vec2) {w->width, w->height}), ctx->mouse_pos);
@@ -288,7 +296,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
 
     // move the window if click on the title bar
     if (ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
-        !(w->options&window_pinned) && ctx->resizing_window != w)
+        !(w->options&window_pinned) && ctx->resizing_window != w && ctx->dragging_object == NULL)
     {
         ctx->dragging_object = w;
         ctx->dragging_offset = ui_vec2_sub(ctx->mouse_pos, w->pos);
@@ -448,7 +456,8 @@ void ui_toggle(ui_context* ctx, const char* label, bool* value)
 
 //-----------------------------------------------------------------------------------------------------------------------------
 void ui_segmented(ui_context* ctx, const char** entries, uint32_t num_entries, uint32_t* selected)
-{ 
+{
+    assert(num_entries > 0);
     ui_rect seg_rect = 
     {
         .x = ctx->layout.x,
@@ -560,31 +569,30 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
         {
             ctx->dragging_object = value;
             ctx->dragging_offset.x = ctx->mouse_pos.x - thumb_x;
+
+            if (ctx->animation.widget == value)
+                ctx->animation.widget = NULL;
         }
     }
     else if (track_hovered && ctx->mouse_button == button_pressed)
     {
-        // click on track make the thumb move
-        ctx->animation = (ui_animation)
-        {
-            .widget = value,
-            .value_key0 = thumb_x,
-            .value_key1 = ctx->mouse_pos.x
-        };
+        // pressing the track directly starts a drag, the thumb follows the cursor
+        ctx->dragging_object = value;
+        ctx->dragging_offset.x = 0.f;
 
-        if (ctx->dragging_object == value)
-            ctx->dragging_object = NULL;
+        if (ctx->animation.widget == value)
+            ctx->animation.widget = NULL;
     }
-
-    // click-on-track update
-    if (ctx->animation.widget == value)
-        thumb_x = lerp_float(ctx->animation.value_key0, ctx->animation.value_key1, ctx->animation.t);
 
     // drag update
     if (ctx->mouse_down && ctx->dragging_object == value)
         thumb_x = ctx->mouse_pos.x - ctx->dragging_offset.x;
 
     thumb_x = clamp_float(track_rect.x, track_rect.x + track_rect.width, thumb_x);
+
+    // keep the thumb geometry in sync with the (possibly) updated thumb position
+    thumb_rect.x = thumb_x - half_size;
+
     norm_value = (thumb_x - track_rect.x) / track_rect.width;
     *value = norm_value * (max_value - min_value) + min_value;
     *value = (step>0.f) ? roundf(*value / step) * step : *value;

@@ -93,7 +93,9 @@ Colors are defined in the sRGB color space. leanUI uses alpha blending.
 ### Inputs
 
 * **ui_update_mouse_pos**: Should be called each time the mouse moves
-* **ui_update_mouse_button**: Call this function whenever a mouse button changes state. Do not call with button_pressed param if the button remains pressed.
+* **ui_update_mouse_button**: Updates the state of the primary (left) mouse button, the only one supported. Call this function whenever the button changes state. Do not call with button_pressed param if the button remains pressed.
+
+Inputs must be updated **before** calling `ui_begin_frame()`: the button state is consumed during the frame and reset at `ui_end_frame()`.
 
 ---
 

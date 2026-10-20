@@ -74,7 +74,7 @@ ui_context* ui_init(const ui_def* def);
 void ui_update_mouse_pos(ui_context* ctx, float x, float y);
 
 //-----------------------------------------------------------------------------------------------------------------------------
-// we care only about one button
+// Updates the state of the primary (left) mouse button. Only this button is supported.
 void ui_update_mouse_button(ui_context* ctx, enum ui_button_state button);
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -136,9 +136,12 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
 bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignment);
 
 //-----------------------------------------------------------------------------------------------------------------------------
-// Displays a knob with a label below, as you can stack multiple knobs in a row you have to call ui_newline()
+// Displays a knob with a label below. Knobs are laid out from the current cursor position,
+// so you can stack several in a row; each one needs enough remaining row width
+// (the row height is doubled for the knob, so keep them in a row of their own and
+// call ui_newline() after the last one of the row)
 //      [min_value]     minimum allowed value
-//      [max_value]     maximum allowed value
+//      [max_value]     maximum allowed value (must be greater than min_value)
 //      [default_value] double-click on the knob will reset the value to default
 //      [value]         pointer to the controlled float
 void ui_knob(ui_context* ctx, const char* label, float min_value, float max_value, float default_value, float* value);

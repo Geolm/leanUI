@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
+project(leanui C)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_C_STANDARD 11)
-project(leanui)
+# C99, as documented in README
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_executable(leanui_test ./test/test.c ./lean_ui.c)
 
@@ -25,8 +26,6 @@ endif()
 set_target_properties(leanui_test PROPERTIES
     C_FLAGS_DEBUG "-g -O0 -DDEBUG"
     C_FLAGS_RELEASE "-O3"
-    CXX_FLAGS_DEBUG "-g -O0"
-    CXX_FLAGS_RELEASE "-O3 -DDEBUG"
 )
 
 # macOS architectures
