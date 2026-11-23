@@ -576,13 +576,18 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
     }
     else if (track_hovered && ctx->mouse_button == button_pressed)
     {
-        // pressing the track directly starts a drag, the thumb follows the cursor
-        ctx->dragging_object = value;
-        ctx->dragging_offset.x = 0.f;
-
-        if (ctx->animation.widget == value)
-            ctx->animation.widget = NULL;
+        // click on track makes the thumb glide to the cursor
+        ctx->animation = (ui_animation)
+        {
+            .widget = value,
+            .value_key0 = thumb_x,
+            .value_key1 = ctx->mouse_pos.x
+        };
     }
+
+    // click-on-track glide
+    if (ctx->animation.widget == value)
+        thumb_x = lerp_float(ctx->animation.value_key0, ctx->animation.value_key1, ctx->animation.t);
 
     // drag update
     if (ctx->mouse_down && ctx->dragging_object == value)
@@ -609,7 +614,7 @@ bool ui_button(ui_context* ctx, const char* label, enum ui_text_alignment alignm
     bool clicked = false;
     float text_width = ctx->renderer.text_width(label, ctx->renderer.user);
 
-    ui_rect button_rect = {.y = ctx->layout.y, .height = ctx->row_height, .width = text_width + 2.f * ctx->padding};
+    ui_rect button_rect = {.y = ctx->layout.y, .height = ctx->font_height + ctx->padding, .width = text_width + 2.f * ctx->padding};
 
     switch(alignment)
     {
