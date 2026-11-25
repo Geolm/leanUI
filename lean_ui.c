@@ -434,7 +434,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
 
     // draw resize handle
     if (!chromeless && (w->options&window_resizable))
-        ctx->renderer.draw_box(handle_rect.x, handle_rect.y, handle_rect.width, handle_rect.height, 0.f, ctx->colors.separator, ctx->renderer.user);
+        ctx->renderer.draw_box(handle_rect.x, handle_rect.y, handle_rect.width, handle_rect.height, 0.f, ctx->colors.scrollbar_hover, ctx->renderer.user);
 
     // clip rect, set from the unshifted layout : the clip stays put while the content scrolls in it
     uint16_t clip_minx = (uint16_t) fmaxf(ctx->layout.x, 0.f);
