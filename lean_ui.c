@@ -314,10 +314,12 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     }
 
     ui_window* w = ctx->current_window;
+    bool chromeless = (w->options & no_chrome) != 0;
 
     // resize
     ui_rect handle_rect = {w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
-    if (ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) && (w->options&window_resizable) && ctx->resizing_window == NULL)
+    if (!chromeless && ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) &&
+        (w->options&window_resizable) && ctx->resizing_window == NULL)
     {
         ctx->resizing_window = w;
         ctx->dragging_offset = ui_vec2_sub(ui_vec2_add(w->pos, (ui_vec2) {w->width, w->height}), ctx->mouse_pos);
@@ -332,7 +334,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     ui_rect title_rect = {w->pos.x+ctx->padding, w->pos.y+ctx->padding, w->width-ctx->padding*2.f, ctx->row_height};
 
     // move the window if click on the title bar
-    if (ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
+    if (!chromeless && ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
         !(w->options&window_pinned) && ctx->resizing_window != w && ctx->dragging_object == NULL)
     {
         ctx->dragging_object = w;
@@ -342,14 +344,21 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     if (ctx->mouse_down && ctx->dragging_object == w)
         w->pos = ui_vec2_sub(ctx->mouse_pos, ctx->dragging_offset);
 
+    // the window may have moved or resized: recompute the geometry so it tracks the cursor in the same frame
+    title_rect = (ui_rect){w->pos.x+ctx->padding, w->pos.y+ctx->padding, w->width-ctx->padding*2.f, ctx->row_height};
+    handle_rect = (ui_rect){w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
+
     // border
-    ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corner, ctx->colors.window_border, ctx->renderer.user);
+    if (!chromeless)
+        ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corner, ctx->colors.window_border, ctx->renderer.user);
 
     // title bg
-    ctx->renderer.draw_box(title_rect.x, title_rect.y, title_rect.width, title_rect.height, ctx->corner, ctx->colors.title_bg, ctx->renderer.user);
+    if (!chromeless)
+        ctx->renderer.draw_box(title_rect.x, title_rect.y, title_rect.width, title_rect.height, ctx->corner, ctx->colors.title_bg, ctx->renderer.user);
 
     // vertical scrolling : content_height comes from the previous frame
-    float top = title_rect.y + title_rect.height + ctx->padding;
+    // a no-chrome window has no title strip : content starts at the top edge
+    float top = chromeless ? w->pos.y + ctx->padding : title_rect.y + title_rect.height + ctx->padding;
     float visible_h = w->pos.y + w->height - ctx->padding - top;
     float max_scroll = fmaxf(0.f, w->content_height - visible_h);
     w->scrollbar_visible = (max_scroll > 0.f);
@@ -403,8 +412,11 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     w->scroll = lerp_float(w->scroll, w->scroll_target, 1.f - expf(-20.f * ctx->delta_time));
 
     // background, full inner width : the scrollbar's reserved strip stays part of the window background
-    ctx->renderer.draw_box(ctx->layout.x, ctx->layout.y, w->width - ctx->padding*2.f,
-                           w->height - title_rect.height - ctx->padding*3.f, 0, ctx->colors.window_bg, ctx->renderer.user);
+    if (chromeless)
+        ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, 0.f, ctx->colors.window_bg, ctx->renderer.user);
+    else
+        ctx->renderer.draw_box(ctx->layout.x, ctx->layout.y, w->width - ctx->padding*2.f,
+                               w->height - title_rect.height - ctx->padding*3.f, 0, ctx->colors.window_bg, ctx->renderer.user);
 
     // scrollbar bar, anchored to the window's right edge so it grows towards the left
     if (max_scroll > 0.f)
@@ -417,10 +429,11 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     ctx->layout.width -= 2.f * ctx->padding;
 
     // title
-    draw_align_text(ctx, &title_rect, w->name, ctx->colors.title_text, align_center);
+    if (!chromeless)
+        draw_align_text(ctx, &title_rect, w->name, ctx->colors.title_text, align_center);
 
     // draw resize handle
-    if (w->options&window_resizable)
+    if (!chromeless && (w->options&window_resizable))
         ctx->renderer.draw_box(handle_rect.x, handle_rect.y, handle_rect.width, handle_rect.height, 0.f, ctx->colors.separator, ctx->renderer.user);
 
     // clip rect, set from the unshifted layout : the clip stays put while the content scrolls in it

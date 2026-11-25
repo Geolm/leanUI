@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define LEAN_UI_VERSION "1.0.0"
+#define LEAN_UI_VERSION "1.1.0"
 
 enum ui_button_state
 {
@@ -24,7 +24,8 @@ enum ui_text_alignment
 enum ui_window_option
 {
     window_pinned = 1<<0,
-    window_resizable = 1<<1
+    window_resizable = 1<<1,
+    no_chrome = 1<<2 // no border, no title, no resize handle : a scrollable background panel, fixed in place and size
 };
 
 typedef struct

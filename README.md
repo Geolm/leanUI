@@ -72,6 +72,7 @@ Very simple and effective layout (no rows or columns)
 - Manually call to ui_newline to make a carriage return
 - Windows whose content is taller than the visible area scroll : feed ui_update_mouse_wheel() to scroll, or drag the scrollbar in the right gutter (it appears only when the content overflows)
 - Custom content can be embedded in a window : ui_get_remaining() returns the area from the current row down to the bottom of the window's content, ui_advance() moves the layout cursor down by the consumed height, and ui_get_row_height() returns the height of a row
+- Set `no_chrome` in the window options for a borderless panel : no border, no title, no resize handle, fixed in place and size. The background fills the whole window and content starts at the top edge. Scrolling still works.
 
 ---
 

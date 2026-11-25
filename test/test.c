@@ -166,6 +166,37 @@ void draw_log_window(ui_context* ctx)
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
+// phase 3 : a chromeless window : no border, no title, no resize handle, and a layout that
+// starts at the top edge of the window. Scrolling is unaffected, so the scrollbar still shows.
+
+void draw_background_window(ui_context* ctx)
+{
+    ui_begin_window(ctx, "Panel", 100, 100, 500, 300, no_chrome);
+
+    for (int i = 0; i < 14; ++i)
+    {
+        ui_text(ctx, align_left, "panel entry %02d : more text", i);
+        ui_newline(ctx);
+    }
+
+    ui_end_window(ctx);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// phase 4 : dragging a window by its title bar. The border, title and content must move in the same
+// frame the mouse moves (a stale title lag is a one-frame-late window)
+
+void draw_draggable_window(ui_context* ctx)
+{
+    ui_begin_window(ctx, "Dragging me", 100, 100, 400, 300, window_resizable);
+
+    ui_text(ctx, align_left, "content");
+    ui_newline(ctx);
+
+    ui_end_window(ctx);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
 // simulates one frame worth of mouse input, then renders the [draw] window.
 // Per the documented input contract [button] is a state-change event sent once :
 // button_pressed when the button goes down, button_released when it is let go,
@@ -241,6 +272,17 @@ int main(void)
     simulate_frame(ctx, button_idle,   588.f, 320.f, 0.f, draw_log_window);   // held : mouse_down is kept
     simulate_frame(ctx, button_idle,   588.f, 350.f, 0.f, draw_log_window);   // held
     simulate_frame(ctx, button_released, 588.f, 350.f, 0.f, draw_log_window);
+
+    //-------------------------------------------------------------------------------------------------------------------------
+    // phase 3 : the no_chrome window, warm-up frame then a wheel notch down
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_background_window);   // warm-up, scrollbar appears
+    simulate_frame(ctx, button_idle, 350.f, 250.f, -1.f, draw_background_window);
+    simulate_frame(ctx, button_idle, 350.f, 250.f, 0.f, draw_background_window);
+
+    //-------------------------------------------------------------------------------------------------------------------------
+    // phase 4 : drag the "Dragging me" window by its title bar (grab, then move with the button held)
+    simulate_frame(ctx, button_pressed, 250.f, 130.f, 0.f, draw_draggable_window);   // grab the title bar
+    simulate_frame(ctx, button_idle,   350.f, 250.f, 0.f, draw_draggable_window);   // held : move the mouse
 
     free(def.preallocated_buffer);
 
