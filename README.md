@@ -14,12 +14,12 @@ It’s designed for games and lightweight applications that need a clean, polish
 
 ## Overview
 
-- Immediate-mode API (rendering is also immediate, now command list to traverse, easier to integrate your own rendering)
+- Immediate-mode API (rendering is also immediate, no command list to traverse, easier to integrate your own rendering)
 - No allocations, no dependencies beyond the C standard library
 - Single header / single source, easy to drop into any project 
 - Built-in easing and animation for a smooth, modern feel
 - A focused set of well-designed widgets  
-- ~600 lines of code, compiles in seconds
+- ~950 lines of code, compiles in seconds
 - Low memory footprint ~3kb as the lib does not store any data for widget and don't use hashmap
 
 ---
@@ -49,6 +49,8 @@ leanUI provides a small, cohesive set of widgets:
 
 ![knobs](docs/knobs.png)
 
+- **Paragraphs** - Text wrapped on spaces to the window's content width. Always left-aligned, no formatting, re-wrapped every frame. A '\n' character forces a line break.
+
 
 Each widget is built with consistent spacing, alignment, and interaction patterns.  
 The goal is not to cover everything, but to make a minimal set look and feel right out of the box.
@@ -68,6 +70,8 @@ This gives small UIs a fluid, modern feel without adding complexity to your code
 Very simple and effective layout (no rows or columns)
 - Horizontal alignment : left, center or right
 - Manually call to ui_newline to make a carriage return
+- Windows whose content is taller than the visible area scroll : feed ui_update_mouse_wheel() to scroll, or drag the scrollbar in the right gutter (it appears only when the content overflows)
+- Custom content can be embedded in a window : ui_get_remaining() returns the area from the current row down to the bottom of the window's content, ui_advance() moves the layout cursor down by the consumed height, and ui_get_row_height() returns the height of a row
 
 ---
 
@@ -83,19 +87,20 @@ Colors are defined in the sRGB color space. leanUI uses alpha blending.
 
 - **draw_line** : Draws a line between (x0, y0) and (x1, y1) with the specified width and color. Currently used for knobs value mark.
 
-- **draw_text**: Draws text at (x, y). The y coordinate specifies the top, but the text will be centered vertically relative to the font height.
+- **draw_text**: Draws text at (x, y). The y coordinate specifies the top, but the text will be centered vertically relative to the font height. [text] is a view of [length] bytes, not guaranteed to be null-terminated.
 
 - **set_clip_rect**: Sets a clipping rectangle so that all subsequent drawing is limited to (x, y, width, height). You can ignore this callback if no widget will be drawn outside the window frame.
 
-- **text_width**: Returns the width that the renderer would need to draw the specified text.
+- **text_width**: Returns the width that the renderer would need to draw the [length] bytes view of the specified text.
 
 
 ### Inputs
 
 * **ui_update_mouse_pos**: Should be called each time the mouse moves
 * **ui_update_mouse_button**: Updates the state of the primary (left) mouse button, the only one supported. Call this function whenever the button changes state. Do not call with button_pressed param if the button remains pressed.
+* **ui_update_mouse_wheel**: Updates the mouse wheel. [delta] is in wheel notches, positive means scroll up (like GLFW's yoffset). Calls add up until `ui_end_frame()`, where the window under the cursor consumes them.
 
-Inputs must be updated **before** calling `ui_begin_frame()`: the button state is consumed during the frame and reset at `ui_end_frame()`.
+Inputs must be updated **before** calling `ui_begin_frame()`: the input state is consumed during the frame and reset at `ui_end_frame()`.
 
 ---
 
@@ -116,6 +121,9 @@ void frame(ui_context* ctx, float delta_time)
     ui_segmented(ctx, list, 4, &selected);
 
     ui_separator(ctx);
+
+    // a view of [length] bytes, wrapped on spaces to the window's content width
+    ui_paragraph(ctx, "This paragraph is wrapped on spaces to the window's content width and re-wrapped every frame.", 93);
 
     static float quantity = 5.f;
     ui_slider(ctx, "Distance", 0.f, 100.f, 1.f, &quantity, "%3.2fkm");
