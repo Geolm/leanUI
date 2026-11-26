@@ -171,7 +171,7 @@ void draw_log_window(ui_context* ctx)
 
 void draw_background_window(ui_context* ctx)
 {
-    ui_begin_window(ctx, "Panel", 100, 100, 500, 300, no_chrome);
+    ui_begin_window(ctx, "Panel", 100, 100, 500, 300, window_no_chrome);
 
     for (int i = 0; i < 14; ++i)
     {
@@ -274,7 +274,7 @@ int main(void)
     simulate_frame(ctx, button_released, 588.f, 350.f, 0.f, draw_log_window);
 
     //-------------------------------------------------------------------------------------------------------------------------
-    // phase 3 : the no_chrome window, warm-up frame then a wheel notch down
+    // phase 3 : the window_no_chrome window, warm-up frame then a wheel notch down
     simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_background_window);   // warm-up, scrollbar appears
     simulate_frame(ctx, button_idle, 350.f, 250.f, -1.f, draw_background_window);
     simulate_frame(ctx, button_idle, 350.f, 250.f, 0.f, draw_background_window);
