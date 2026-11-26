@@ -5,7 +5,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define LEAN_UI_VERSION "1.1.0"
+//-----------------------------------------------------------------------------------------------------------------------------
+// public structures
+//-----------------------------------------------------------------------------------------------------------------------------
 
 enum ui_button_state
 {
@@ -23,19 +25,21 @@ enum ui_text_alignment
 
 enum ui_window_option
 {
-    window_pinned = 1<<0,
-    window_resizable = 1<<1,
-    no_chrome = 1<<2 // no border, no title, no resize handle : a scrollable background panel, fixed in place and size
+    window_pinned = 1<<0,          // the window cannot be moved by dragging its title bar
+    window_resizable = 1<<1,       // the window can be resized from its bottom-right corner
+    window_no_titlebar = 1<<2,     // no title bar : the content starts at the top and the window has no drag handle
+    window_no_border = 1<<3,       // no border ring : the window is a single rounded card
+    window_no_chrome = window_no_titlebar | window_no_border
 };
 
 typedef struct
 {
     void (*draw_box)(float x, float y, float width, float height, float radius, uint32_t srgb_color, void* user);
-    // draw the view top-left aligned with x,y
-    void (*draw_text)(float x, float y, const char* text, size_t length, uint32_t srgb_color, void* user);
+    // [text] is a view of [length] bytes, not guaranteed to be null-terminated
+    void (*draw_text)(float x, float y, const char* text, size_t length, uint32_t srgb_color, void* user); // draw the view top-left aligned with x,y
     void (*draw_line)(float x0, float y0, float x1, float y1, float width, uint32_t srgb_color, void* user);
     void (*set_clip_rect)(uint16_t min_x, uint16_t min_y, uint16_t max_x, uint16_t max_y, void* user);
-    float (*text_width)(const char* text, size_t length, void* user);
+    float (*text_width)(const char* text, size_t length, void* user);   // width of the [length] bytes view of [text]
     void* user;
 } ui_renderer_fnc_t;
 
@@ -91,6 +95,8 @@ void ui_begin_frame(ui_context* ctx, float delta_time);
 //      [name]                  unique name, hashed under the hood
 //      [x, y, width, height]   initial position and size in pixels can be changed by the user
 //      [options]               combination of options from enum ui_window_option
+//
+// A window created with window_no_titlebar has no drag handle and cannot be moved.
 void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float width, float height, uint32_t options);
 
 //-----------------------------------------------------------------------------------------------------------------------------

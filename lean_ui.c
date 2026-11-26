@@ -45,6 +45,7 @@ typedef struct
     uint32_t value_bg;
     uint32_t value_text;
     uint32_t separator;
+    uint32_t resize_handle;
     uint32_t scrollbar_idle;
     uint32_t scrollbar_hover;
 } ui_colors;
@@ -174,7 +175,7 @@ static inline void draw_align_text(ui_context* ctx, const ui_rect* rect, const c
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
-static inline float text_width(ui_context* ctx, const char* text)
+static inline float text_width(ui_context* ctx, const char* text) 
 {
     return ctx->renderer.text_width(text, strlen(text), ctx->renderer.user);
 }
@@ -226,6 +227,7 @@ ui_context* ui_init(const ui_def* def)
             .value_bg = 0xFFEDE6DE,
             .value_text = 0xFF1E1E1E,
             .separator = 0x40553E2C,
+            .resize_handle = 0xFF553E2C,
             .scrollbar_idle = 0x80553E2C,
             .scrollbar_hover = 0xA0553E2C
         }
@@ -305,7 +307,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
             .id = id,
             .pos = {.x = x, .y = y},
             .min_width = text_width(ctx, name) + ctx->padding * 2.f,
-            .min_height = ctx->row_height * 2.f,
+            .min_height = (options & window_no_titlebar) ? ctx->row_height * 2.f : ctx->row_height * 3.f,
             .width = width,
             .height = height,
             .options = options,
@@ -314,12 +316,10 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     }
 
     ui_window* w = ctx->current_window;
-    bool chromeless = (w->options & no_chrome) != 0;
 
     // resize
     ui_rect handle_rect = {w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
-    if (!chromeless && ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) &&
-        (w->options&window_resizable) && ctx->resizing_window == NULL)
+    if (ctx->mouse_button == button_pressed && in_rect(&handle_rect, ctx->mouse_pos) && (w->options&window_resizable) && ctx->resizing_window == NULL)
     {
         ctx->resizing_window = w;
         ctx->dragging_offset = ui_vec2_sub(ui_vec2_add(w->pos, (ui_vec2) {w->width, w->height}), ctx->mouse_pos);
@@ -331,10 +331,15 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
         w->height = fmaxf(ctx->mouse_pos.y + ctx->dragging_offset.y - w->pos.y, w->min_height);
     }
 
-    ui_rect title_rect = {w->pos.x+ctx->padding, w->pos.y+ctx->padding, w->width-ctx->padding*2.f, ctx->row_height};
+    bool titlebar = !(w->options & window_no_titlebar);
+    bool border = !(w->options & window_no_border);
+    float inset = border ? ctx->padding : 0.f;
+    float title_height = ctx->font_height + ctx->padding;
 
-    // move the window if click on the title bar
-    if (!chromeless && ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
+    ui_rect title_rect = {w->pos.x + inset, w->pos.y + inset, w->width - inset * 2.f, title_height};
+
+    // move the window if click on the title bar : a window without a title bar has no drag handle
+    if (titlebar && ctx->mouse_button == button_pressed && in_rect(&title_rect, ctx->mouse_pos) &&
         !(w->options&window_pinned) && ctx->resizing_window != w && ctx->dragging_object == NULL)
     {
         ctx->dragging_object = w;
@@ -344,21 +349,18 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     if (ctx->mouse_down && ctx->dragging_object == w)
         w->pos = ui_vec2_sub(ctx->mouse_pos, ctx->dragging_offset);
 
-    // the window may have moved or resized: recompute the geometry so it tracks the cursor in the same frame
-    title_rect = (ui_rect){w->pos.x+ctx->padding, w->pos.y+ctx->padding, w->width-ctx->padding*2.f, ctx->row_height};
-    handle_rect = (ui_rect){w->pos.x + w->width - ctx->corner, w->pos.y + w->height - ctx->corner, ctx->corner, ctx->corner};
-
-    // border
-    if (!chromeless)
+    // border frame, or the plain card a borderless window is made of
+    if (border)
         ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corner, ctx->colors.window_border, ctx->renderer.user);
+    else
+        ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, ctx->corner, ctx->colors.window_bg, ctx->renderer.user);
 
     // title bg
-    if (!chromeless)
+    if (titlebar)
         ctx->renderer.draw_box(title_rect.x, title_rect.y, title_rect.width, title_rect.height, ctx->corner, ctx->colors.title_bg, ctx->renderer.user);
 
     // vertical scrolling : content_height comes from the previous frame
-    // a no-chrome window has no title strip : content starts at the top edge
-    float top = chromeless ? w->pos.y + ctx->padding : title_rect.y + title_rect.height + ctx->padding;
+    float top = w->pos.y + inset + (titlebar ? title_height + ctx->padding : ctx->padding * 2.f);
     float visible_h = w->pos.y + w->height - ctx->padding - top;
     float max_scroll = fmaxf(0.f, w->content_height - visible_h);
     w->scrollbar_visible = (max_scroll > 0.f);
@@ -378,12 +380,13 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     if (in_rect(&win, ctx->mouse_pos))
         w->scroll_target -= ctx->mouse_wheel * ctx->row_height * 2.f;
 
+    // scrollbar in the window's right edge : the hit rect matches the visible bar, which eases between an idle
+    // width (1 * padding) and a hover width (1.5 * padding), and grows as soon as the cursor enters the full-height
+    // strip of its widest size
     ui_rect thumb = {0};
     float bar_w = 0.f;
     if (max_scroll > 0.f)
     {
-        // the bar eases between an idle width and a hover width ; the cursor triggers the hover growth
-        // by entering the full-height strip of its widest size
         float thumb_h = fmaxf(visible_h * visible_h / w->content_height, ctx->row_height * .5f);
         float bar_right = w->pos.x + w->width - ctx->padding;
         bar_w = lerp_float(ctx->padding, ctx->padding * 1.5f, w->scroll_hover);
@@ -397,11 +400,7 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
         }
 
         if (ctx->mouse_down && ctx->dragging_object == &w->scroll)
-        {
-            // held drag : refresh the bar in the same frame so it tracks the cursor without a frame of latency
             w->scroll = w->scroll_target = clamp_float(0.f, max_scroll, (ctx->mouse_pos.y - ctx->dragging_offset.y - top) / (visible_h - thumb_h) * max_scroll);
-            thumb.y = top + (w->scroll / max_scroll) * (visible_h - thumb_h);
-        }
 
         // hover fade in and out, framerate independent
         float hover_goal = (hovered || ctx->dragging_object == &w->scroll) ? 1.f : 0.f;
@@ -411,12 +410,11 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     w->scroll_target = clamp_float(0.f, max_scroll, w->scroll_target);
     w->scroll = lerp_float(w->scroll, w->scroll_target, 1.f - expf(-20.f * ctx->delta_time));
 
-    // background, full inner width : the scrollbar's reserved strip stays part of the window background
-    if (chromeless)
-        ctx->renderer.draw_box(w->pos.x, w->pos.y, w->width, w->height, 0.f, ctx->colors.window_bg, ctx->renderer.user);
-    else
+    // background, full inner width : the scrollbar's reserved strip stays part of the window background,
+    // a borderless window already drew its background as the card
+    if (border)
         ctx->renderer.draw_box(ctx->layout.x, ctx->layout.y, w->width - ctx->padding*2.f,
-                               w->height - title_rect.height - ctx->padding*3.f, 0, ctx->colors.window_bg, ctx->renderer.user);
+                               w->pos.y + w->height - ctx->padding - ctx->layout.y, 0, ctx->colors.window_bg, ctx->renderer.user);
 
     // scrollbar bar, anchored to the window's right edge so it grows towards the left
     if (max_scroll > 0.f)
@@ -428,13 +426,28 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
     ctx->layout.x += ctx->padding;
     ctx->layout.width -= 2.f * ctx->padding;
 
-    // title
-    if (!chromeless)
-        draw_align_text(ctx, &title_rect, w->name, ctx->colors.title_text, align_center);
+    // title, vertically centered in the strip : draw_text is fed the top of a row_height-tall
+    // row (like every other row of text), so center that row in the strip
+    if (titlebar)
+    {
+        ui_rect text_rect = title_rect;
+        text_rect.y += (text_rect.height - ctx->row_height) * .5f;
+        draw_align_text(ctx, &text_rect, w->name, ctx->colors.title_text, align_center);
+    }
 
-    // draw resize handle
-    if (!chromeless && (w->options&window_resizable))
-        ctx->renderer.draw_box(handle_rect.x, handle_rect.y, handle_rect.width, handle_rect.height, 0.f, ctx->colors.scrollbar_hover, ctx->renderer.user);
+    // resize handle : five dots along the ring's corner curve, full sweep from edge to edge
+    if (w->options&window_resizable)
+    {
+        float r = ctx->corner * .1f;
+        float rho = ctx->corner - ctx->padding * .5f;   // ring band centerline radius
+        for (int i = 0; i < 5; ++i)
+        {
+            float a = 22.5f * i * 3.14159265f / 180.f;
+            float x = handle_rect.x + rho * cosf(a) - r;
+            float y = handle_rect.y + rho * sinf(a) - r;
+            ctx->renderer.draw_box(x, y, r * 2.f, r * 2.f, r, ctx->colors.resize_handle, ctx->renderer.user);
+        }
+    }
 
     // clip rect, set from the unshifted layout : the clip stays put while the content scrolls in it
     uint16_t clip_minx = (uint16_t) fmaxf(ctx->layout.x, 0.f);
