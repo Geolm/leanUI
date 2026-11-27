@@ -74,6 +74,28 @@ Very simple and effective layout (no rows or columns)
 - Custom content can be embedded in a window : ui_get_remaining() returns the area from the current row down to the bottom of the window's content, ui_advance() moves the layout cursor down by the consumed height, and ui_get_row_height() returns the height of a row
 - Set `no_chrome` in the window options for a borderless panel : no border, no title, no resize handle, fixed in place and size. The background fills the whole window and content starts at the top edge. Scrolling still works.
 
+## Palette
+
+The color palette is generated procedurally by `ui_set_palette()`, which can be called at any time outside a frame. Every color role sits at a fixed lightness in the OKLCH space, so contrast holds whatever hue you pick.
+
+- **hue** — hue of the surfaces and texts in degrees [0, 360) : 250 = blue-grey, 78 = sand
+- **accent_hue** — hue of the accent (toggles, sliders, selection) in degrees
+- **tint** — strength of the surface tint : 0 = neutral grey, 1 = strong (sand)
+- **dark** — dark mode
+
+Suggested values:
+
+| look | hue | accent_hue | tint | dark |
+|---|---|---|---|---|
+| light (default) : light blue-grey | 250 | 250 | 0.7 | false 
+| dark : neutral | 250 | 250 | 0.3 | true | 
+| sand : terracotta accent | 78 | 53 | 1.0 | false | 
+| grey : pure neutral | any | 250 | 0 | false | 
+
+```c
+ui_set_palette(ctx, 78.f, 53.f, 1.f, false); // sand
+```
+
 ---
 
 ## Integration
@@ -82,7 +104,7 @@ You just need to add lean_ui.c/h to your project, set the callbacks at init and 
 
 ### Callbacks
 
-Colors are defined in the sRGB color space. leanUI uses alpha blending.  
+Colors are defined in the sRGB color space and packed as `0xAABBGGRR` (red in the lowest byte). leanUI uses alpha blending.  
 
 - **draw_box**: The rectangle’s rounded corners are expected to fit entirely within the rectangle’s bounds; no part of the corner should extend beyond x, y, width, or height. draw_box is used to draw disc.
 

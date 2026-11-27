@@ -190,6 +190,56 @@ static inline void draw_disc(ui_context* ctx, float x, float y, float radius, ui
 // UI functions
 //-----------------------------------------------------------------------------------------------------------------------------
 
+// one row per role, in ui_colors field order : {lightness in light mode, lightness in dark mode, chroma at tint 1}
+static const float palette_recipe[][3] =
+{
+    {.86f, .36f, .031f},  // window_border
+    {.96f, .27f, .012f},  // window_bg
+    {.90f, .32f, .030f},  // title_bg
+    {.33f, .93f, .030f},  // title_text
+    {.93f, .33f, .021f},  // widget_bg
+    {.89f, .37f, .029f},  // widget_hover
+    {.85f, .42f, .038f},  // widget_active
+    {.41f, .88f, .037f},  // text
+    {.70f, .56f, 0.f  },  // accent (chroma computed separately)
+    {.92f, .24f, .018f},  // value_bg
+    {.26f, .96f, .018f}   // value_text
+};
+_Static_assert(sizeof(ui_colors) == 15*sizeof(uint32_t), "palette_recipe indexes ui_colors as an array of uint32_t");
+
+//-----------------------------------------------------------------------------------------------------------------------------
+static uint32_t oklch_to_srgb(float L, float C, float hue_deg)
+{
+    float h = hue_deg * (3.14159265f/180.f), a = C*cosf(h), b = C*sinf(h);
+    float l = L + .3963377774f*a + .2158037573f*b; l = l*l*l;
+    float m = L - .1055613458f*a - .0638541728f*b; m = m*m*m;
+    float s = L - .0894841775f*a - 1.2914855480f*b; s = s*s*s;
+    float rgb[3] = { 4.0767416621f*l - 3.3077115913f*m + .2309699292f*s,
+                    -1.2684380046f*l + 2.6097574011f*m - .3413193965f*s,
+                    -.0041960863f*l - .7034186147f*m + 1.7076147010f*s};
+    uint32_t out = 0xFF000000;
+    for (int i = 0; i < 3; ++i)
+    {
+        float x = fminf(fmaxf(rgb[i], 0.f), 1.f);   // clamp out-of-gamut colors
+        x = (x <= .0031308f) ? 12.92f*x : 1.055f*powf(x, 1.f/2.4f) - .055f;
+        out |= (uint32_t)(x*255.f + .5f) << (i*8);  // R in the low byte
+    }
+    return out;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+void ui_set_palette(ui_context* ctx, float hue, float accent_hue, float tint, bool dark)
+{
+    uint32_t* c = (uint32_t*)&ctx->colors;  // ui_colors holds only uint32_t, in recipe order
+    for (size_t i = 0; i < sizeof(palette_recipe)/sizeof(palette_recipe[0]); ++i)
+        c[i] = oklch_to_srgb(palette_recipe[i][dark], palette_recipe[i][2]*tint, hue);
+    ctx->colors.accent = oklch_to_srgb(palette_recipe[8][dark], .05f + .056f*tint, accent_hue);
+    ctx->colors.separator = (ctx->colors.text & 0x00FFFFFF) | 0x40000000;
+    ctx->colors.resize_handle = ctx->colors.text;
+    ctx->colors.scrollbar_idle = (ctx->colors.text & 0x00FFFFFF) | 0x80000000;
+    ctx->colors.scrollbar_hover = (ctx->colors.text & 0x00FFFFFF) | 0xA0000000;
+}
+
 //-----------------------------------------------------------------------------------------------------------------------------
 size_t ui_min_memory_size(void)
 {
@@ -212,26 +262,9 @@ ui_context* ui_init(const ui_def* def)
         .font_height = def->font_height,
         .renderer = def->renderer_callbacks,
         .padding = fmaxf(def->font_height/4.f, 2.f),
-        .corner = fmaxf(def->font_height/2.f, 2.f),
-        .colors = 
-        {
-            .window_bg = 0xFFF7F0E9,
-            .window_border = 0xFFE3CDB8,
-            .title_bg = 0xFFE5C4A8,
-            .title_text = 0xFF402A1B,
-            .widget_bg = 0xFFF4E6D8,
-            .widget_hover = 0xFFEEDBC3,
-            .widget_active = 0xFFE7CCB0,
-            .text = 0xFF553E2C,
-            .accent = 0xFFE68B3E,
-            .value_bg = 0xFFEDE6DE,
-            .value_text = 0xFF1E1E1E,
-            .separator = 0x40553E2C,
-            .resize_handle = 0xFF553E2C,
-            .scrollbar_idle = 0x80553E2C,
-            .scrollbar_hover = 0xA0553E2C
-        }
+        .corner = fmaxf(def->font_height/2.f, 2.f)
     };
+    ui_set_palette(ctx, 250.f, 250.f, .7f, false);
     ctx->row_height = ctx->font_height * 1.5f;
     return ctx;
 }

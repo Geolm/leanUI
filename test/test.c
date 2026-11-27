@@ -237,6 +237,7 @@ int main(void)
     };
 
     ui_context* ctx = ui_init(&def);
+    ui_set_palette(ctx, 78.f, 53.f, 1.f, false);   // sand look
 
     //-------------------------------------------------------------------------------------------------------------------------
     // phase 1 : the classic demo window, pressed button outside of it (nothing interactive happens)

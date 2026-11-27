@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define LEAN_UI_VERSION "1.2.0"
+
 //-----------------------------------------------------------------------------------------------------------------------------
 // public structures
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -32,6 +34,7 @@ enum ui_window_option
     window_no_chrome = window_no_titlebar | window_no_border
 };
 
+// Colors are sRGB, packed as 0xAABBGGRR: red in the lowest byte, i.e. R,G,B,A bytes in memory on little-endian
 typedef struct
 {
     void (*draw_box)(float x, float y, float width, float height, float radius, uint32_t srgb_color, void* user);
@@ -72,6 +75,14 @@ size_t ui_min_memory_size(void);
 //      [renderer_callbacks]    user-provided drawing callbacks
 //      [font_height]           height in pixels of the font
 ui_context* ui_init(const ui_def* def);
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// Generates the color palette. Can be called at any time outside a frame.
+//      [hue]           hue of surfaces and texts in degrees [0, 360), e.g. 250 = blue-grey, 78 = sand
+//      [accent_hue]    hue of the accent (toggles, sliders, selection) in degrees
+//      [tint]          strength of the surface tint: 0 = neutral grey, 1 = strong (sand)
+//      [dark]          dark mode
+void ui_set_palette(ui_context* ctx, float hue, float accent_hue, float tint, bool dark);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Updates the position of mouse in screen coordinate in pixels
