@@ -7,7 +7,7 @@
 leanUI is a small immediate-mode UI library written in C99.  
 It’s designed for games and lightweight applications that need a clean, polished interface without bringing in a full framework.
 
-<img src="docs/example.png" alt="leanUI example" width="50%">
+<img src="docs/example.gif" alt="leanUI example" width="50%">
 
 
 ---
