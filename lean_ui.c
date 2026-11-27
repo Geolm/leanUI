@@ -82,6 +82,7 @@ struct ui_context
     void* dragging_object;
     ui_animation animation;
     ui_hover hover;
+    ui_hover thumb_hover;
     ui_vec2 dragging_offset;
     ui_rect layout;
     ui_rect content_rect;
@@ -717,13 +718,13 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
         .height = ctx->padding
     };
 
-    // thumb geometry
+    // thumb geometry, a disc centered on the thumb position
     float norm_value = (*value - min_value) / (max_value - min_value);
     float thumb_x = norm_value * track_rect.width + track_rect.x;
     float thumb_size = ctx->font_height - 4.f;
     float half_size = thumb_size * .5f;
 
-    ui_rect thumb_rect = 
+    ui_rect thumb_rect =
     {
         .x = thumb_x - half_size,
         .y = center_y - half_size,
@@ -734,6 +735,24 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
     const bool track_hovered = ui_hovered(ctx, &track_rect);
     const bool thumb_hovered = ui_hovered(ctx, &thumb_rect);
 
+    // hover grow animation, eased in and out
+    if (thumb_hovered)
+    {
+        if (ctx->thumb_hover.widget != value)
+            ctx->thumb_hover = (ui_hover) {.widget = value, .t = 0.f};
+        ctx->thumb_hover.t = fminf(1.f, ctx->thumb_hover.t + ctx->delta_time / HOVER_DURATION);
+    }
+    else if (ctx->thumb_hover.widget == value)
+    {
+        ctx->thumb_hover.t -= ctx->delta_time / HOVER_DURATION;
+        if (ctx->thumb_hover.t <= 0.f)
+            ctx->thumb_hover = (ui_hover) {.widget = NULL, .t = 0.f};
+    }
+    const float hover_grow = (ctx->thumb_hover.widget == value) ? ctx->thumb_hover.t : 0.f;
+
+    float grown_size = thumb_size + 4.f * hover_grow;
+    float grown_half = grown_size * .5f;
+
     // track change color on mouse-over
     uint32_t track_color = (track_hovered || (ctx->dragging_object == value)) ? ctx->colors.widget_hover : ctx->colors.widget_bg;
     ctx->renderer.draw_box(track_rect.x, track_rect.y, track_rect.width, track_rect.height,
@@ -742,7 +761,6 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
     // thumb mouse-over and dragging
     if (thumb_hovered)
     {
-        expand_rect(&thumb_rect, 2.f);
         if (ctx->mouse_button == button_pressed)
         {
             ctx->dragging_object = value;
@@ -774,13 +792,16 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
     thumb_x = clamp_float(track_rect.x, track_rect.x + track_rect.width, thumb_x);
 
     // keep the thumb geometry in sync with the (possibly) updated thumb position
-    thumb_rect.x = thumb_x - half_size;
+    thumb_rect.x = thumb_x - grown_half;
+    thumb_rect.y = center_y - grown_half;
+    thumb_rect.width = grown_size;
+    thumb_rect.height = grown_size;
 
     norm_value = (thumb_x - track_rect.x) / track_rect.width;
     *value = norm_value * (max_value - min_value) + min_value;
     *value = (step>0.f) ? roundf(*value / step) * step : *value;
 
-    ctx->renderer.draw_box(thumb_rect.x, thumb_rect.y, thumb_rect.width, thumb_rect.height, half_size,
+    ctx->renderer.draw_box(thumb_rect.x, thumb_rect.y, thumb_rect.width, thumb_rect.height, grown_half,
                            ctx->colors.accent, ctx->renderer.user);
 
     ui_newline(ctx);

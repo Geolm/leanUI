@@ -92,10 +92,6 @@ Suggested values:
 | sand : terracotta accent | 78 | 53 | 1.0 | false | 
 | grey : pure neutral | any | 250 | 0 | false | 
 
-```c
-ui_set_palette(ctx, 78.f, 53.f, 1.f, false); // sand
-```
-
 ---
 
 ## Integration
