@@ -10,6 +10,7 @@
 //   - ui_paragraph()               wrapped text, string view of [length] bytes
 //   - ui_get_remaining() + ui_advance() + ui_get_row_height()  embedding custom content
 //   - ui_update_mouse_wheel() + scrollbar   scrolling a window whose content overflows
+//   - ui_progress()               eased fill bar : label row + rounded bar, fraction clamped to [0, 1]
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // renderer callbacks : print the draw commands on stdout
@@ -197,6 +198,24 @@ void draw_draggable_window(ui_context* ctx)
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
+// phase 5 : ui_progress() : a label row (label on the left, formatted value on the right) above a rounded bar whose fill
+//      eases toward the target fraction. The statics are set from main() each frame so the target can jump mid-phase
+//      and the easing shows up in the printed output.
+
+static float demo_download = 0.35f;
+static float demo_upload = 0.7f;
+
+void draw_progress_window(ui_context* ctx)
+{
+    ui_begin_window(ctx, "Progress", 100, 100, 500, 300, 0);
+
+    ui_progress(ctx, "Download", demo_download, "%3.0f%%", demo_download * 100.f);
+    ui_progress(ctx, "Upload", demo_upload, "%2.2fMB/s", demo_upload * 2.5f);
+
+    ui_end_window(ctx);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
 // simulates one frame worth of mouse input, then renders the [draw] window.
 // Per the documented input contract [button] is a state-change event sent once :
 // button_pressed when the button goes down, button_released when it is let go,
@@ -284,6 +303,18 @@ int main(void)
     // phase 4 : drag the "Dragging me" window by its title bar (grab, then move with the button held)
     simulate_frame(ctx, button_pressed, 250.f, 130.f, 0.f, draw_draggable_window);   // grab the title bar
     simulate_frame(ctx, button_idle,   350.f, 250.f, 0.f, draw_draggable_window);   // held : move the mouse
+
+    //-------------------------------------------------------------------------------------------------------------------------
+    // phase 5 : ui_progress() : two bars, warm-up at 35% / 70%, then the download target jumps to 85% and the fill eases toward it
+    demo_download = 0.35f;
+    demo_upload = 0.7f;
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_progress_window);   // warm-up, both bars drawn in place
+
+    demo_download = 0.85f;
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_progress_window);
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_progress_window);
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_progress_window);
+    simulate_frame(ctx, button_idle, 1000.f, 1000.f, 0.f, draw_progress_window);
 
     free(def.preallocated_buffer);
 

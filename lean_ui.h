@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define LEAN_UI_VERSION "1.2.0"
+#define LEAN_UI_VERSION "1.3.0"
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // public structures
@@ -157,6 +157,14 @@ void ui_segmented(ui_context* ctx, const char** entries, uint32_t num_entries, u
 //      [value]        pointer to the controlled float
 //      [fmt]          printf-style format for the displayed numeric value
 void ui_slider(ui_context* ctx, const char* label, float min_value, float max_value, float step, float* value, const char* fmt);
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// Displays a progress bar : a label row (label on the left, formatted value on the right) above a rounded bar whose fill
+//      eases toward [fraction]. Bars with the same label share the same animation state.
+//      [label]      stable string, hashed under the hood : keep it a literal or static buffer
+//      [fraction]   target fill fraction, clamped to [0, 1]
+//      [fmt]        printf-style format for the right-aligned value text
+void ui_progress(ui_context* ctx, const char* label, float fraction, const char* fmt, ...);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Displays a clickable button

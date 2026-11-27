@@ -6,6 +6,7 @@
 #include <math.h>
 
 #define MAX_WINDOWS (16)
+#define MAX_PROGRESS (16)
 #define STRING_BUFFER_SIZE (2048)
 #define ANIMATION_DURATION (.2f)
 #define HOVER_DURATION (.1f)
@@ -65,6 +66,12 @@ typedef struct
     float t;
 } ui_hover;
 
+typedef struct
+{
+    uint32_t id;
+    float animated;
+} ui_progress_state;
+
 
 struct ui_context
 {
@@ -83,6 +90,8 @@ struct ui_context
     ui_animation animation;
     ui_hover hover;
     ui_hover thumb_hover;
+    ui_progress_state progress_states[MAX_PROGRESS];
+    uint32_t num_progress_states;
     ui_vec2 dragging_offset;
     ui_rect layout;
     ui_rect content_rect;
@@ -803,6 +812,71 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
 
     ctx->renderer.draw_box(thumb_rect.x, thumb_rect.y, thumb_rect.width, thumb_rect.height, grown_half,
                            ctx->colors.accent, ctx->renderer.user);
+
+    ui_newline(ctx);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+void ui_progress(ui_context* ctx, const char* label, float fraction, const char* fmt, ...)
+{
+    assert(ctx->current_window != NULL);
+
+    fraction = clamp_float(0.f, 1.f, fraction);
+
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(ctx->string_buffer, STRING_BUFFER_SIZE, fmt, args);
+    va_end(args);
+
+    // find the animation state for this bar, or create it already in place
+    float animated = fraction;
+    if (ctx->num_progress_states < MAX_PROGRESS)
+    {
+        uint32_t id = ui_hash(label, strlen(label));
+        ui_progress_state* state = NULL;
+        for (uint32_t i = 0; i < ctx->num_progress_states; ++i)
+            if (ctx->progress_states[i].id == id)
+                state = &ctx->progress_states[i];
+
+        if (state == NULL)
+        {
+            state = &ctx->progress_states[ctx->num_progress_states++];
+            state->id = id;
+            state->animated = fraction;
+        }
+
+        state->animated = lerp_float(state->animated, fraction, 1.f - expf(-15.f * ctx->delta_time));
+        if (fabsf(state->animated - fraction) < 0.001f)
+            state->animated = fraction;
+        animated = state->animated;
+    }
+
+    // label row : label on the left, formatted value on the right
+    draw_align_text(ctx, &ctx->layout, label, ctx->colors.text, align_left);
+    draw_align_text(ctx, &ctx->layout, ctx->string_buffer, ctx->colors.text, align_right);
+    ui_newline(ctx);
+
+    // bar row
+    float center_y = ctx->layout.y + .5f * ctx->layout.height;
+
+    ui_rect track_rect =
+    {
+        .x = ctx->layout.x,
+        .y = center_y - ctx->padding * .5f,
+        .width = ctx->layout.width,
+        .height = ctx->padding
+    };
+
+    ctx->renderer.draw_box(track_rect.x, track_rect.y, track_rect.width, track_rect.height,
+                           track_rect.height * .5f, ctx->colors.value_bg, ctx->renderer.user);
+
+    float fill_width = animated * track_rect.width;
+    if (fill_width > 0.f)
+    {
+        float fill_radius = fminf(track_rect.height * .5f, fill_width * .5f);
+        ctx->renderer.draw_box(track_rect.x, track_rect.y, fill_width, track_rect.height,
+                               fill_radius, ctx->colors.accent, ctx->renderer.user);
+    }
 
     ui_newline(ctx);
 }
