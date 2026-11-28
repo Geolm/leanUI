@@ -53,6 +53,9 @@ dkms.conf
 # MacOS
 *.DS_Store
 
+# graphic test captures (references live in test/references/)
+test/out/
+
 # XCode
 xcuserdata/
 xcshareddata/

@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define LEAN_UI_VERSION "1.3.0"
+#define LEAN_UI_VERSION "1.4.0"
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // public structures
@@ -54,6 +54,13 @@ typedef struct
 } ui_def;
 
 typedef struct {float x, y, width, height;} ui_rect;
+
+// One segment of a ui_meter
+typedef struct
+{
+    const char* label;   // legend name
+    float value;         // part of the meter's total
+} ui_meter_entry;
 
 typedef struct ui_context ui_context;
 
@@ -165,6 +172,21 @@ void ui_slider(ui_context* ctx, const char* label, float min_value, float max_va
 //      [fraction]   target fill fraction, clamped to [0, 1]
 //      [fmt]        printf-style format for the right-aligned value text
 void ui_progress(ui_context* ctx, const char* label, float fraction, const char* fmt, ...);
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// Displays a segmented meter : a header row (title on the left, a summary on the right), a horizontal bar
+//      whose solid segments are proportional to [entries][i].value / [total], and a wrapping legend below
+//      (swatch, name, formatted value). The space of [total] not covered by the entries is drawn in the
+//      neutral background color ; when [free_label] is not NULL that remainder gets a legend entry under
+//      that name (neutral swatch) and can be hovered like a segment.
+//      [title]        left-aligned header text
+//      [entries]      array of [num_entries] segments
+//      [num_entries]  number of segments (> 0)
+//      [total]        whole the values are parts of (> 0)
+//      [free_label]   legend name of the uncovered remainder, or NULL for a plain neutral area
+//      [value_fmt]    printf-style format applied to each value (e.g. "%.0f GB")
+void ui_meter(ui_context* ctx, const char* title, const ui_meter_entry* entries,
+              uint32_t num_entries, float total, const char* free_label, const char* value_fmt);
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Displays a clickable button

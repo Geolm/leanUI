@@ -1,0 +1,234 @@
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// This file is included by the cpp renderer and the shaders
+// ---------------------------------------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// renderer constants
+#define TILE_SIZE (16)
+#define REGION_SIZE (16)
+#define NODES_PER_CHUNK (6)
+#define MAX_NODE_CHUNKS (704U<<10U)
+#define INVALID_INDEX (0xffffffff)
+#define MAX_CLIPS (256)
+#define MAX_COMMANDS (1<<16)
+#define MAX_DRAWDATA (MAX_COMMANDS * 4)
+#define SIMD_GROUP_SIZE (32)
+#define LAST_COMMAND (MAX_COMMANDS-1)
+#define MAX_THREADS_PER_THREADGROUP (1024)
+#define MAX_GLYPHS (256)          // the glyph index must fit in the 8-bit extra field of draw_command
+#define OD_NUM_FONTS (4)
+#define OD_NUM_FONT_SIZES (9)
+#define MAX_FACES (OD_NUM_FONTS * OD_NUM_FONT_SIZES)
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// cpp compatibility
+#ifndef __METAL_VERSION__
+#pragma once
+#define constant
+#define atomic_uint uint32_t
+#define device
+#define texture_half uint64_t
+#define texture_array uint64_t
+#define texture_half_r uint64_t
+#define texture_half_w uint64_t
+#ifdef __cplusplus
+    typedef struct alignas(8) {float x, y;} float2;
+    typedef struct alignas(16) {float x, y, z, w;} float4;
+#else
+    typedef struct {float x, y;} float2;
+    typedef struct {float x, y, z, w;} float4;
+#endif
+#else
+using namespace metal;
+#define texture_half texture2d<half>
+#define texture_array texture2d_array<half>
+#define texture_half_r texture2d<half, access::read>
+#define texture_half_w texture2d<half, access::write>
+#endif
+
+// packed on 6 bits
+enum command_type
+{
+    primitive_char = 0,
+    primitive_aabox = 1,
+    primitive_oriented_box = 2,
+    primitive_disc = 3,
+    primitive_triangle = 4,
+    primitive_ellipse = 5,
+    primitive_pie = 6,
+    primitive_arc = 7,
+    primitive_blurred_box = 8,
+    primitive_quad = 9,
+    primitive_oriented_quad = 10,
+    primitive_polygon = 11,
+    
+    begin_group = 32,
+    end_group = 33
+};
+
+enum primitive_fillmode
+{
+    fill_solid = 0,
+    fill_outline = 1,
+    fill_hollow = 2,
+    fill_gradient = 3,
+};
+
+enum sdf_operator
+{
+    op_overwrite = 0,
+    op_blend = 1
+};
+
+// packed 8 bytes structure
+typedef struct draw_command
+{
+    uint32_t data_index;
+#ifdef RASTERIZER_SHADER
+    uint32_t packed_data;
+#else
+    uint8_t extra;
+    uint8_t clip_index;
+    uint8_t fillmode;
+    uint8_t type;
+#endif
+} draw_command;
+
+// 16-byte chunk: 6 command indices + the link to the next chunk, ~2.7 bytes per command
+// Slot 5 holds the first (top-most) command added, slot 0 the last (bottom-most). 
+// Unused slots of a partial chunk hold LAST_COMMAND and are skipped.
+typedef struct node_chunk
+{
+    uint32_t next;
+    uint16_t command_index[NODES_PER_CHUNK];
+} node_chunk;
+
+typedef struct counters
+{
+    atomic_uint num_chunks;
+    atomic_uint num_tiles;
+    atomic_uint num_clean_tiles;
+    uint32_t pad;
+} counters;
+
+// a disc is the degenerate case where radius == half_x == half_y
+typedef struct clip_shape
+{
+    float center_x, center_y, half_x, half_y, radius;
+} clip_shape;
+
+typedef struct quantized_aabb
+{
+#ifdef RASTERIZER_SHADER
+    uint32_t packed_data;
+#else
+    uint8_t min_x;
+    uint8_t min_y;
+    uint8_t max_x;
+    uint8_t max_y;
+#endif
+} quantized_aabb;
+
+typedef struct font_char
+{
+    float2 uv_topleft;
+    float2 uv_bottomright;
+    float width;
+    float height;
+} font_char;
+
+// cpu font description, the pre-build baker serializes this layout into the default_font headers
+typedef struct glyph
+{
+    uint16_t x0, y0, x1, y1;
+    float bearing_x, bearing_y;
+    float advance_x;
+} glyph;
+
+typedef struct font_face
+{
+    glyph glyphs[MAX_GLYPHS];
+    float pixel_size;
+    float ascent;         // top of the line -> baseline, pixels
+    float line_height;    // distance between two baselines, pixels
+} font_face;
+
+typedef struct font_bank
+{
+    font_face faces[MAX_FACES];
+    uint32_t codepoints[MAX_GLYPHS];   // sorted, the glyph index is the position in this list
+    uint16_t num_glyphs;
+    uint16_t texture_width;
+    uint16_t texture_height;
+} font_bank;
+
+typedef struct draw_cmd_arguments
+{
+    constant draw_command* commands;
+    constant uint32_t* command_hashes;
+    constant uint32_t* colors;
+    constant quantized_aabb* commands_aabb;
+    constant float* draw_data;
+    constant clip_shape* clips;
+    constant font_char* glyphs;
+    texture_half font;
+    texture_array atlas;
+    texture_half_w cache_texture;    // tile cache surface, written by tile_fs (1x1 placeholder when the cache is off)
+    texture_half_r cache_read;       // read view of the same surface, for the clean tiles redraw
+    float4 clear_color;
+    uint32_t num_commands;
+    uint32_t max_chunks;
+    uint32_t num_tile_width;
+    uint32_t num_tile_height;
+    uint32_t num_region_width;
+    uint32_t num_region_height;
+    float aa_width;
+    float2 screen_div;
+    bool culling_debug;
+    bool srgb_backbuffer;
+    bool cache;
+    uint32_t num_draw_data;   // the last command's data range ends here
+    uint32_t frame_seed;
+} draw_cmd_arguments;
+
+typedef struct tiles_data
+{
+    device uint32_t* head;
+    device node_chunk* chunks;
+    device uint16_t* tile_indices;
+    device uint16_t* clean_indices;
+    device uint32_t* tile_hashes;
+} tiles_data;
+
+typedef struct output_command_buffer
+{
+    // MTLDrawPrimitivesIndirectArguments { vertexCount, instanceCount, vertexStart, baseInstance } of the dirty and
+    // clean draws, written by write_icb and consumed by the render pass as the indirect draw arguments
+    uint32_t dirty_indirect_args[4];
+    uint32_t clean_indirect_args[4];
+} output_command_buffer;
+
+#ifdef __METAL_VERSION__
+inline float2 skew(float2 v) {return float2(-v.y, v.x);}
+inline float cross2(float2 a, float2 b ) {return a.x*b.y - a.y*b.x;}
+
+template<typename T>
+T linearstep(T edge0, T edge1, T x)
+{
+    return clamp((x - edge0) / (edge1 - edge0), T(0), T(1));
+}
+#endif
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// cpp compatibility
+#ifndef __METAL_VERSION__
+#undef constant
+#undef atomic_uint
+#undef device
+#endif
+
+
+#endif

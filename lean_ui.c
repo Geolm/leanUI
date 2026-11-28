@@ -99,6 +99,8 @@ struct ui_context
     float row_height;
     float padding;
     float corner;
+    float hue, accent_hue, tint;
+    bool dark;
     ui_colors colors;
     ui_renderer_fnc_t renderer;
     char string_buffer[STRING_BUFFER_SIZE];
@@ -197,6 +199,22 @@ static inline void draw_disc(ui_context* ctx, float x, float y, float radius, ui
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
+// A half-pill (rounded on one end, straight on the other) is a pill plus a square covering its
+// rounded end : the square fills the pill's corner notches and leaves a hard edge on its side
+static inline void draw_meter_segment(ui_context* ctx, float x0, float x1, float y, float h,
+                                      uint32_t color, bool round_left, bool round_right)
+{
+    float w = x1 - x0;
+    float radius = fminf(w, h) * .5f;
+
+    ctx->renderer.draw_box(x0, y, w, h, (round_left || round_right) ? radius : 0.f, color, ctx->renderer.user);
+    if (round_left && !round_right)
+        ctx->renderer.draw_box(fmaxf(x0, x1 - h), y, fminf(w, h), h, 0.f, color, ctx->renderer.user);
+    else if (round_right && !round_left)
+        ctx->renderer.draw_box(x0, y, fminf(w, h), h, 0.f, color, ctx->renderer.user);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
 // UI functions
 //-----------------------------------------------------------------------------------------------------------------------------
 
@@ -240,6 +258,12 @@ static uint32_t oklch_to_srgb(float L, float C, float hue_deg)
 //-----------------------------------------------------------------------------------------------------------------------------
 void ui_set_palette(ui_context* ctx, float hue, float accent_hue, float tint, bool dark)
 {
+    // kept for widgets that derive colors at frame time (ui_meter)
+    ctx->hue = hue;
+    ctx->accent_hue = accent_hue;
+    ctx->tint = tint;
+    ctx->dark = dark;
+
     uint32_t* c = (uint32_t*)&ctx->colors;  // ui_colors holds only uint32_t, in recipe order
     for (size_t i = 0; i < sizeof(palette_recipe)/sizeof(palette_recipe[0]); ++i)
         c[i] = oklch_to_srgb(palette_recipe[i][dark], palette_recipe[i][2]*tint, hue);
@@ -248,6 +272,15 @@ void ui_set_palette(ui_context* ctx, float hue, float accent_hue, float tint, bo
     ctx->colors.resize_handle = ctx->colors.text;
     ctx->colors.scrollbar_idle = (ctx->colors.text & 0x00FFFFFF) | 0x80000000;
     ctx->colors.scrollbar_hover = (ctx->colors.text & 0x00FFFFFF) | 0xA0000000;
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+// Segment colors spread evenly around the wheel from the accent hue, so any number of
+// segments stays categorical and follows ui_set_palette()
+static uint32_t meter_color(ui_context* ctx, uint32_t index, uint32_t count)
+{
+    float hue = fmodf(ctx->accent_hue + 360.f * (float)index / (float)count, 360.f);
+    return oklch_to_srgb(ctx->dark ? .60f : .68f, .06f + .08f * ctx->tint, hue);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -391,6 +424,14 @@ void ui_begin_window(ui_context* ctx, const char* name, float x, float y, float 
 
     if (ctx->mouse_down && ctx->dragging_object == w)
         w->pos = ui_vec2_sub(ctx->mouse_pos, ctx->dragging_offset);
+
+    // title_rect and handle_rect were captured before the window moved or grew this frame :
+    // refresh them for the drawing below, a stale strip or handle lags the window by one frame
+    title_rect.x = w->pos.x + inset;
+    title_rect.y = w->pos.y + inset;
+    title_rect.width = w->width - inset * 2.f;
+    handle_rect.x = w->pos.x + w->width - ctx->corner;
+    handle_rect.y = w->pos.y + w->height - ctx->corner;
 
     // border frame, or the plain card a borderless window is made of
     if (border)
@@ -878,6 +919,134 @@ void ui_progress(ui_context* ctx, const char* label, float fraction, const char*
                                fill_radius, ctx->colors.accent, ctx->renderer.user);
     }
 
+    ui_newline(ctx);
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+void ui_meter(ui_context* ctx, const char* title, const ui_meter_entry* entries,
+              uint32_t num_entries, float total, const char* free_label, const char* value_fmt)
+{
+    assert(ctx->current_window != NULL);
+    assert(total > 0.f);
+    assert(num_entries > 0);
+
+    float bar_h = ctx->font_height * .8f;
+    float bar_x = ctx->layout.x;
+    float bar_width = ctx->layout.width;
+    // the bar occupies the row below the header row, both rows sharing x, width and height at a row boundary
+    float bar_y = ctx->layout.y + ctx->layout.height + (ctx->layout.height - bar_h) * .5f;
+
+    float sum = 0.f;
+    for (uint32_t i = 0; i < num_entries; ++i)
+        sum += clamp_float(0.f, total, entries[i].value);
+    float remainder = fmaxf(0.f, total - sum);
+
+    // hover : the entries, then the named remainder
+    int32_t hover = -1;
+    ui_rect seg_rect;
+    float x = bar_x;
+    for (uint32_t i = 0; i < num_entries; ++i)
+    {
+        float w = clamp_float(0.f, total, entries[i].value) / total * bar_width;
+        seg_rect = (ui_rect) {x, bar_y, w, bar_h};
+        if ((w > 0.f) && ui_hovered(ctx, &seg_rect))
+            hover = (int32_t)i;
+        x += w;
+    }
+    bool hover_free = false;
+    if ((free_label != NULL) && (remainder > 0.f))
+    {
+        float w = bar_x + bar_width - x;
+        seg_rect = (ui_rect) {x, bar_y, w, bar_h};
+        if ((w > 0.f) && ui_hovered(ctx, &seg_rect))
+            hover_free = true;
+    }
+
+    // the summary follows the cursor, otherwise the highest-value entry
+    uint32_t summary = 0;
+    if (hover >= 0)
+        summary = (uint32_t)hover;
+    else if (hover_free)
+        summary = num_entries;
+    else
+        for (uint32_t i = 1; i < num_entries; ++i)
+            if (clamp_float(0.f, total, entries[i].value) > clamp_float(0.f, total, entries[summary].value))
+                summary = i;
+
+    char value_str[64];
+    float summary_value = (summary < num_entries) ? clamp_float(0.f, total, entries[summary].value) : remainder;
+    snprintf(value_str, sizeof(value_str), value_fmt, summary_value);
+    snprintf(ctx->string_buffer, STRING_BUFFER_SIZE, "%s \xC2\xB7 %s \xC2\xB7 %.0f%%",
+             (summary < num_entries) ? entries[summary].label : free_label, value_str, summary_value / total * 100.f);
+
+    // header row
+    draw_align_text(ctx, &ctx->layout, title, ctx->colors.text, align_left);
+    draw_align_text(ctx, &ctx->layout, ctx->string_buffer, ctx->colors.text, align_right);
+    ui_newline(ctx);
+
+    // bar row : the first visible segment is rounded-left, the last visible one rounded-right
+    int32_t first_vis = -1;
+    int32_t last_vis = -1;
+    for (uint32_t i = 0; i <= num_entries; ++i)
+    {
+        float v = (i < num_entries) ? clamp_float(0.f, total, entries[i].value) : remainder;
+        if (v > 0.f)
+        {
+            if (first_vis < 0)
+                first_vis = (int32_t)i;
+            last_vis = (int32_t)i;
+        }
+    }
+
+    x = bar_x;
+    for (uint32_t i = 0; i <= num_entries; ++i)
+    {
+        float v = (i < num_entries) ? clamp_float(0.f, total, entries[i].value) : remainder;
+        float w = v / total * bar_width;
+        if (i == num_entries)
+            w = fminf(w, bar_x + bar_width - x);
+        if (w > 0.f)
+        {
+            uint32_t color = (i < num_entries) ? meter_color(ctx, i, num_entries) : ctx->colors.value_bg;
+            if ((i == (uint32_t)hover) || ((i == num_entries) && hover_free))
+                color = lerp_color(color, 0xFFFFFFFF, .15f);
+            draw_meter_segment(ctx, x, x + w, bar_y, bar_h, color, (int32_t)i == first_vis, (int32_t)i == last_vis);
+        }
+        x += w;
+    }
+    ui_newline(ctx);
+
+    // legend rows : [swatch] name value items flowing left to right
+    float swatch = ctx->font_height * .6f;
+    float gap = ctx->padding;
+    x = ctx->layout.x;
+
+    for (uint32_t i = 0; i <= num_entries; ++i)
+    {
+        if ((i == num_entries) && ((free_label == NULL) || (remainder <= 0.f)))
+            break;
+
+        const char* name = (i < num_entries) ? entries[i].label : free_label;
+        float v = (i < num_entries) ? clamp_float(0.f, total, entries[i].value) : remainder;
+        snprintf(value_str, sizeof(value_str), value_fmt, v);
+
+        float name_w = text_width(ctx, name);
+        float value_w = text_width(ctx, value_str);
+        float item_w = swatch + gap * 2.f + name_w + value_w;
+        if ((x > ctx->layout.x) && (x + item_w > ctx->layout.x + ctx->layout.width))
+        {
+            ui_newline(ctx);
+            x = ctx->layout.x;
+        }
+
+        uint32_t color = (i < num_entries) ? meter_color(ctx, i, num_entries) : ctx->colors.value_bg;
+        ctx->renderer.draw_box(x, ctx->layout.y + (ctx->layout.height - swatch) * .5f, swatch, swatch,
+                               swatch * .3f, color, ctx->renderer.user);
+        ctx->renderer.draw_text(x + swatch + gap, ctx->layout.y, name, strlen(name), ctx->colors.text, ctx->renderer.user);
+        ctx->renderer.draw_text(x + swatch + gap + name_w + gap, ctx->layout.y, value_str, strlen(value_str),
+                                ctx->colors.value_text, ctx->renderer.user);
+        x += item_w + ctx->padding * 2.f;
+    }
     ui_newline(ctx);
 }
 

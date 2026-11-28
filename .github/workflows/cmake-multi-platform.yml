@@ -56,3 +56,9 @@ jobs:
             ./build/leanui_test
           fi
         shell: bash
+
+      # 7. Run the graphic regression test (macOS only : offscreen Metal rendering through onedraw)
+      - name: Run graphic test
+        if: runner.os == 'macOS'
+        run: ./build/leanui_graphic_test
+        shell: bash
